@@ -42,7 +42,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fara RAG Demo</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="{{ test_url }}/vendor/html-to-image.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; background: #1a1a2e; }
@@ -154,13 +154,18 @@ async function captureFrame() {
   removeAnnotationDot();  // 截图前先清除标注，防止干扰 Fara
   const iframe = $('appFrame');
   const doc = iframe.contentDocument || iframe.contentWindow.document;
-  const canvas = await html2canvas(doc.body, { scale: 1.0, useCORS: true, allowTaint: true });
-  lastCanvasW = canvas.width;
-  lastCanvasH = canvas.height;
+  // 真实渲染截图（SVG foreignObject，浏览器原生渲染，无 html2canvas 重绘偏移）
+  const dataUrl = await htmlToImage.toPng(doc.body, { pixelRatio: 1 });
+  // 取真实尺寸（与红圈换算基准 getBoundingClientRect 一致）
+  const img = new Image();
+  img.src = dataUrl;
+  await new Promise(r => img.onload = r);
+  lastCanvasW = img.width;
+  lastCanvasH = img.height;
   // 预览
-  $('screenshotPreview').src = canvas.toDataURL('image/png');
+  $('screenshotPreview').src = dataUrl;
   $('screenshotPreview').style.display = 'block';
-  return canvas.toDataURL('image/png').split(',')[1];
+  return dataUrl.split(',')[1];
 }
 
 async function runFull() {

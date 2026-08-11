@@ -25,7 +25,7 @@
 以下为 vLLM 服务启动参数（model_server.py 使用）:
 - FARA_GPU / CHECKER_GPU           : CUDA_VISIBLE_DEVICES（默认 0 / 1）
 - FARA_GPU_MEM_UTIL / CHECKER_GPU_MEM_UTIL : 显存利用率（默认 0.85 / 0.30）
-- FARA_MAX_MODEL_LEN / CHECKER_MAX_MODEL_LEN : 上下文长度（默认 4096 / 2048）
+- FARA_MAX_MODEL_LEN / CHECKER_MAX_MODEL_LEN : 上下文长度（默认 4096 / 8192）
 - FARA_ENFORCE_EAGER / CHECKER_ENFORCE_EAGER : 禁用 CUDA Graph（默认 1）
 - FARA_USE_BF16 / CHECKER_USE_BF16 : 是否 --dtype bfloat16（默认 1 / 0）
 - VLLM_BIN                         : vllm 可执行文件路径（默认自动查找）
@@ -151,9 +151,10 @@ FARA_USE_BF16 = _env_bool("FARA_USE_BF16", True)             # --dtype bfloat16
 # ---- Checker ----
 CHECKER_GPU = _env_or(_CHECKER_GPU_DEFAULT, "CHECKER_GPU")
 CHECKER_GPU_MEM_UTIL = _env_or("0.30", "CHECKER_GPU_MEM_UTIL")
-CHECKER_MAX_MODEL_LEN = _env_or("2048", "CHECKER_MAX_MODEL_LEN")
+CHECKER_MAX_MODEL_LEN = _env_or("8192", "CHECKER_MAX_MODEL_LEN")  # 容纳原图+放大图两张图 token
 CHECKER_ENFORCE_EAGER = _env_bool("CHECKER_ENFORCE_EAGER", True)   # 禁用 CUDA Graph
 CHECKER_USE_BF16 = _env_bool("CHECKER_USE_BF16", False)           # --dtype bfloat16
+CHECKER_MM_IMAGES = _env_or("2", "CHECKER_MM_IMAGES")             # 每请求最多图片数（原图+放大=2）
 
 # ---- 通用 ----
 VLLM_BIN = _env_or("", "VLLM_BIN")                       # vllm 可执行文件，空则自动查找

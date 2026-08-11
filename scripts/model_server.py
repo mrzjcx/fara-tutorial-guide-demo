@@ -49,7 +49,7 @@ def resolve_vllm_bin() -> str:
     sys.exit(1)
 
 
-def vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16):
+def vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16, mm_image_limit=""):
     """构造 vllm serve 命令（served-model-name 与模型路径严格一致，含尾部 /）。"""
     cmd = [
         resolve_vllm_bin(), "serve", model_path,
@@ -64,6 +64,8 @@ def vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16):
         cmd.append("--enforce-eager")
     if bf16:
         cmd += ["--dtype", "bfloat16"]
+    if mm_image_limit:
+        cmd += ["--limit-mm-per-prompt", f'{{"image": {mm_image_limit}}}']
     return cmd
 
 
@@ -76,10 +78,10 @@ def is_running(port: int) -> bool:
         return False
 
 
-def start_service(name, model_path, port, gpu, mem_util, max_len, enforce_eager, bf16):
+def start_service(name, model_path, port, gpu, mem_util, max_len, enforce_eager, bf16, mm_image_limit=""):
     """后台启动单个 vLLM 服务，日志写入 LOG_DIR/{name}.log。"""
     log = LOG_DIR / f"{name}.log"
-    cmd = vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16)
+    cmd = vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16, mm_image_limit)
     env = dict(os.environ)
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     logf = open(log, "w")
@@ -155,7 +157,8 @@ def main():
         started.append(start_service(
             "checker", pc.CHECKER_MODEL_PATH, pc.CHECKER_PORT, pc.CHECKER_GPU,
             pc.CHECKER_GPU_MEM_UTIL, pc.CHECKER_MAX_MODEL_LEN,
-            pc.CHECKER_ENFORCE_EAGER, pc.CHECKER_USE_BF16))
+            pc.CHECKER_ENFORCE_EAGER, pc.CHECKER_USE_BF16,
+            mm_image_limit=pc.CHECKER_MM_IMAGES))
 
     if not started:
         print("两个服务均已运行，无需启动。")

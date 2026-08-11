@@ -31,6 +31,8 @@ Rules:
 - If a step requires filling multiple fields → suggest the FIRST empty field, not the submit button.
 - If a step is already completed, move to the next step.
 - How to tell a step is completed: the target item is highlighted/selected — e.g., its border is highlighted (turns blue or another highlight color), or it appears selected/checked.
+- When the current step's required items are ALL already selected/highlighted, the correct next action is clicking the visible "下一步 →" button — even if the NEXT step's content (e.g., doctor list) is not yet visible. Do NOT output [-1, -1] in this case.
+- Output [-1, -1] ONLY when the element needed for the CURRENT step is not visible in the screenshot. A next-screen's content being hidden is NOT a reason to stop — click the visible 下一步/confirm button instead.
 - x is horizontal (left to right), y is vertical (top to bottom).
 - Coordinates are in 1000x1000 normalized space (top-left=0,0; bottom-right=1000,1000).
 - If you cannot determine the next action, output coordinate: [-1, -1].

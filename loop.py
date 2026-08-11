@@ -38,13 +38,10 @@ def _needs_confirmation(reasoning: str, snippets_text: str) -> bool:
 
 
 def _apply_confirmation(fara_result, rag_snippets) -> None:
-    """⑤ 为最终返回的 FaraResult 标记是否需要人工确认。"""
+    """⑤ 标记是否需要人工确认（仅依据 Fara 引导语，避免 RAG 切片标题误触发）。"""
     if fara_result.needs_confirmation or not fara_result.reasoning:
         return
-    snippets_text = " ".join(
-        s.get("text", "") for s in rag_snippets
-    ) if rag_snippets else ""
-    if _needs_confirmation(fara_result.reasoning, snippets_text):
+    if _needs_confirmation(fara_result.reasoning, ""):
         fara_result.needs_confirmation = True
 
 

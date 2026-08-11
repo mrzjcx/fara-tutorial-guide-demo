@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 def crop_zoom_base64(screenshot_b64: str, x: int, y: int,
-                     scale: int = 2, radius: int = 140) -> str:
+                     scale: int = 3, radius: int = 90) -> str:
     """将 1000x1000 归一化坐标 (x, y) 附近的区域裁剪并放大，返回 base64 PNG。"""
     from PIL import Image
     img = Image.open(io.BytesIO(base64.b64decode(screenshot_b64)))
@@ -65,17 +65,20 @@ You will receive:
 
 Your task: Look at the screenshot and decide if clicking at [x, y] is the RIGHT next action according to the tutorial.
 
-IMPORTANT — Coordinate space & composite image:
-- The coordinate [x, y] is in 1000x1000 NORMALIZED space (top-left=0,0; bottom-right=1000,1000), the SAME space the Fara model outputs.
-- Locate it in the LEFT half of the composite image using the PERCENTAGES given in the message (left X%, top Y%). Do NOT convert using the composite image's own pixel size.
-- Then compare the element at that location against the tutorial.
+IMPORTANT — Your only task (no coordinate conversion):
+- The SECOND image is a zoomed-in crop whose CENTER is exactly where Fara suggests clicking.
+- Judge ONLY the content at the CENTER of the SECOND image: does it match what the tutorial step requires for the next action?
+- Do NOT convert coordinates and do NOT locate anything by percentage — the crop already centers the suggested location.
+- Examples: center shows "14号" date card while the tutorial says select 14号 → correct; center shows empty space or an unrelated element → incorrect.
+- Judge based ONLY on elements ACTUALLY VISIBLE in the screenshots. NEVER invent or assume UI elements that are not present.
+- If the center is empty space / no clear element / you cannot see it clearly, do NOT invent an element name — say the target is unclear.
+- Tutorial text mentioning "医生/科室/支付" does NOT mean those elements exist in the screenshot. The screenshots are the ONLY ground truth.
 
-IMPORTANT — Zoomed-in view & no hallucination:
-- The single image is a COMPOSITE: LEFT half = full screenshot (scaled down), RIGHT half = zoomed-in crop around the suggested coordinate.
-- Use the LEFT half to LOCATE the coordinate (via the percentages); use the RIGHT half ONLY to CONFIRM element details.
-- Judge based ONLY on elements ACTUALLY VISIBLE in the screenshot. NEVER invent or assume UI elements that are not present (e.g., do NOT claim there is a "doctor list" if none is visible).
-- If the location is empty space / no clear element / you cannot see it clearly, do NOT invent an element name — say the target is unclear.
-- Tutorial text mentioning "医生/科室/支付" does NOT mean those elements exist in the screenshot. The screenshot is the ONLY ground truth.
+IMPORTANT — Single-step guidance flow:
+- This system guides the user ONE action at a time: Fara outputs exactly ONE click per round.
+- Judge ONLY whether the center of the second image is the correct target for THIS round's single action.
+- Do NOT require the whole tutorial step (e.g., "select date AND department") to be completed in one round — the remaining sub-actions (like selecting department) are the NEXT rounds, not mistakes.
+- If Fara's guidance says "click 14号" and the center shows 14号 → correct:true, even if department/doctor are not yet selected.
 
 IMPORTANT — Step completion check (do this BEFORE judging the coordinate):
 - First check whether the current step's required items are ALREADY completed on the screenshot. A required item is completed when it is highlighted/selected — e.g., its border is highlighted (turns blue or another highlight color), or it appears selected/checked.
@@ -202,11 +205,10 @@ class Checker:
 
         x, y = fara_coord[0], fara_coord[1]
 
-        # ② 局部放大：坐标附近区域裁剪放大 + 全景缩略拼接为单图（满足 vLLM image=1 限制）
+        # ② 局部放大：坐标附近区域裁剪放大，作为第二张图辅助 Checker 确认细节
         zoom_b64 = ""
         try:
-            crop_b64 = crop_zoom_base64(screenshot_b64, x, y)
-            zoom_b64 = make_combined_view(screenshot_b64, crop_b64)
+            zoom_b64 = crop_zoom_base64(screenshot_b64, x, y)
         except Exception as e:
             logger.debug(f"局部放大失败: {e}")
 
@@ -291,24 +293,22 @@ class Checker:
         text = (
             f"[教程] 说明书相关步骤（RAG 检索）：\n{snippets_text}\n\n"
             f"[目标] 用户意图：{user_intent if user_intent else '未指定'}\n\n"
-            f"[模型] Fara 建议点击坐标: [{x}, {y}]（1000x1000 归一化空间）\n"
-            f"       在左侧全景图中约位于：左 {x/10:.1f}% / 上 {y/10:.1f}%\n"
-            f"       （请按此百分比在左侧全景图中定位，不要用拼图自身尺寸换算）\n"
+            f"[模型] Fara 建议点击的位置 = 第二张放大图的中心（无需换算坐标）\n"
             f"[记录] Fara 的引导: {fara_reasoning}\n\n"
-            f"请判断 Fara 的建议是否正确。"
+            f"请判断：第二张放大图中心位置的内容，是否符合教程当前步骤的要求。"
         )
 
-        content = []
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"},
+            },
+        ]
         if zoom_b64:
-            # 单图：全景+放大的拼接图（满足 vLLM image=1 限制）
+            # 第二张图：坐标附近的局部放大图（Checker 服务已允许 image=2）
             content.append({
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{zoom_b64}"},
-            })
-        else:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"},
             })
         content.append({"type": "text", "text": text})
         return content
