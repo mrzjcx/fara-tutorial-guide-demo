@@ -122,7 +122,7 @@ def run_demo(
         print(f"\n  第 {entry['attempt']} 轮:")
         if fr.success:
             print(f"    [坐标] Fara 坐标: {fr.coordinate}")
-            print(f"    [推理] 推理: {fr.reasoning[:100]}...")
+            print(f"    [引导] 引导语: {fr.reasoning[:100]}...")
         else:
             print(f"    [失败] Fara 失败: {fr.error}")
 
@@ -134,11 +134,25 @@ def run_demo(
             if cr.error:
                 print(f"    [警告]  {cr.error}")
 
-    # 最终坐标
-    if result.success and result.is_valid:
+    # 最终结果（④ 降级 / ⑤ 确认 / 正常坐标）
+    if getattr(result, "degraded", False):
+        print(f"\n  [📝 文字指导模式] 模型未能确定坐标，请按引导语操作:")
+        print(f"      {result.reasoning}")
+    elif result.success and result.is_valid:
         print(f"\n  [OK] 最终坐标: {result.coordinate}")
+        if getattr(result, "needs_confirmation", False):
+            print(f"  [⚠️ 需人工确认] 该操作涉及提交/确认（不可逆），请确认无误后再执行！")
+        print(f"  [引导] {result.reasoning}")
+        # Checker 意见（若有且判错）
+        for entry in history:
+            cr = entry.get("checker")
+            if cr and cr.enabled and cr.verified is False:
+                print(f"  [⚠️ Checker 提示] 认为该坐标可能不正确（仅供参考）: {cr.reason[:80]}")
+                break
     else:
         print(f"\n  [失败] 未能获取有效坐标")
+        if result.reasoning:
+            print(f"  [引导] {result.reasoning}")
 
     return result, history
 

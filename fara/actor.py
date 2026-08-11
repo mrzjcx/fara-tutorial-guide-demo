@@ -34,7 +34,8 @@ Rules:
 - x is horizontal (left to right), y is vertical (top to bottom).
 - Coordinates are in 1000x1000 normalized space (top-left=0,0; bottom-right=1000,1000).
 - If you cannot determine the next action, output coordinate: [-1, -1].
-- Output EXACTLY one line of reasoning in Chinese, then the tool_call.
+- Output EXACTLY one line of GUIDANCE in Chinese that directly instructs the user what to do (second person, actionable), e.g. "请点击左侧第二张'骨科'卡片". Then output the tool_call.
+- The guidance line is shown to the user as the instruction — write it for a human, not as internal reasoning.
 - Do NOT suggest submitting forms or irreversible actions unless the user's instructions explicitly allow it.
 
 FORM-FILLING GUIDANCE (Any step with input fields):
@@ -53,7 +54,7 @@ IMPORTANT — Handling Ambiguity:
 - If the user's intent is vague (e.g., "选个上午的时间") and the screenshot shows multiple possible targets, DO NOT guess a single coordinate.
 - Instead, list ALL matching candidates with their approximate coordinates in this format:
   <tool_call>{"name": "computer_use", "arguments": {"action": "left_click", "coordinate": [[x1,y1], [x2,y2], ...]}}</tool_call>
-- For each candidate, briefly explain what it is in the reasoning text.
+- For each candidate, briefly describe it in the guidance line so the user can choose (e.g. "多个可选：a) 骨科（左侧第二张卡片） b) 内科（右侧第一张）").
 - If the exact target is NOT visible on the current screenshot, output coordinate: [-1, -1] and explain what the user should look for.
 """
 
@@ -63,11 +64,13 @@ class FaraResult:
     """Fara Actor 单次调用结果"""
     success: bool
     coordinate: Union[List[int], List[List[int]]]  # [x,y] 或 [[x1,y1],[x2,y2]]
-    reasoning: str                                  # 推理文本（中文）
+    reasoning: str                                  # 引导语/推理文本（中文）
     raw_response: str                               # 模型原始输出
     prompt_tokens: int = 0
     completion_tokens: int = 0
     error: str = ""
+    degraded: bool = False                          # ④ 降级为文字指导（无有效坐标）
+    needs_confirmation: bool = False                # ⑤ 涉及不可逆操作，需人工确认
 
     @property
     def is_valid(self) -> bool:

@@ -22,6 +22,51 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
+# ⑤ 人机确认点：检测不可逆操作（提交/支付/确认等）
+# ============================================================
+
+_CONFIRM_KEYWORDS = (
+    "确认挂号", "确认支付", "确认缴费", "确认取药",
+    "去缴费", "立即缴费", "提交", "支付密码",
+)
+
+
+def _needs_confirmation(reasoning: str, snippets_text: str) -> bool:
+    """检测当前建议动作是否涉及不可逆操作。"""
+    text = f"{reasoning or ''} {snippets_text or ''}"
+    return any(k in text for k in _CONFIRM_KEYWORDS)
+
+
+def _apply_confirmation(fara_result, rag_snippets) -> None:
+    """⑤ 为最终返回的 FaraResult 标记是否需要人工确认。"""
+    if fara_result.needs_confirmation or not fara_result.reasoning:
+        return
+    snippets_text = " ".join(
+        s.get("text", "") for s in rag_snippets
+    ) if rag_snippets else ""
+    if _needs_confirmation(fara_result.reasoning, snippets_text):
+        fara_result.needs_confirmation = True
+
+
+# ============================================================
+# ④ 失败降级：无有效坐标时降级为文字指导
+# ============================================================
+
+def _make_degraded(fara_result) -> FaraResult:
+    """将无有效坐标的结果降级为文字指导（degraded=True）。"""
+    return FaraResult(
+        success=True,
+        coordinate=[-1, -1],
+        reasoning=(fara_result.reasoning
+                   or "模型未能确定下一步，请根据页面情况自行操作。"),
+        raw_response=fara_result.raw_response,
+        prompt_tokens=fara_result.prompt_tokens,
+        completion_tokens=fara_result.completion_tokens,
+        degraded=True,
+    )
+
+
+# ============================================================
 # 关键词质量检测（plan_rag_query 输出可能被 Fara 复述为摘要）
 # ============================================================
 
@@ -139,6 +184,7 @@ class FaraCheckerLoop:
         self._max_retries = max_retries
         self._step_history: List[str] = []  # P0-1: 已完成微动作
         self._query_cache: Dict[Tuple[str, str], str] = {}  # P2-6: (intent, step_context)→keywords
+        self._last_snippets: List[Dict] = []  # 最近一次实际喂给模型的 RAG 切片（展示用）
 
     def reset_context(self):
         """重置步骤上下文（新任务开始前调用）。"""
@@ -194,6 +240,7 @@ class FaraCheckerLoop:
         # ============================================================
         rag_snippets = self._rag.query(rag_keywords, top_k=top_k_rag) if rag_keywords else []
         rag_snippets = _fill_step_gaps(self._rag, rag_snippets, top_k_rag)
+        self._last_snippets = rag_snippets  # 保存实际喂给模型的切片（供展示层读取）
         structured_snippets = self._format_snippets_structured(rag_snippets) if rag_snippets else ""  # P1-3
         logger.info(f"RAG 检索 → {len(rag_snippets)} 个切片: "
                      f"{[s.get('step', '?') for s in rag_snippets]}")
@@ -236,19 +283,22 @@ class FaraCheckerLoop:
                 return fara_result, history
 
             if not fara_result.is_valid:
-                logger.warning("Fara 未返回有效坐标，返回当前结果")
-                return fara_result, history
+                logger.warning("Fara 未返回有效坐标，降级为文字指导")
+                degraded = _make_degraded(fara_result)
+                return degraded, history
 
             # ---- Checker 验证 ----
             if self._checker is None or not self._checker.enabled:
                 logger.info("Checker 未启用，直接返回 Fara 结果")
                 self._record_action(fara_result)
+                _apply_confirmation(fara_result, rag_snippets)
                 return fara_result, history
 
             # 多候选坐标不支持 Checker 验证，直接返回
             if fara_result.single_coord is None:
                 logger.info("多候选坐标，跳过 Checker 验证，直接返回")
                 self._record_action(fara_result)
+                _apply_confirmation(fara_result, rag_snippets)
                 return fara_result, history
 
             checker_result = self._checker.verify(
@@ -262,7 +312,9 @@ class FaraCheckerLoop:
 
             # ---- 判断 ----
             if checker_result.is_correct:
-                logger.info(f"[OK] Checker 确认正确，返回坐标 {fara_result.coordinate}")
+                _apply_confirmation(fara_result, rag_snippets)
+                logger.info(f"[OK] Checker 确认正确，返回坐标 {fara_result.coordinate}"
+                            + ("（需人工确认）" if fara_result.needs_confirmation else ""))
                 self._record_action(fara_result)
                 return fara_result, history
 
@@ -271,10 +323,11 @@ class FaraCheckerLoop:
                 checker_feedback = checker_result.reason
                 continue
 
-            # 达到最大重试或 Checker 无法判断
+            # 达到最大重试：Checker(0.8B) 视觉不可靠，不否决 Fara 坐标，
+            # 返回坐标 + Checker 意见，由用户自行判断（人在回路）
             logger.warning(
                 f"Checker {'拒绝' if checker_result.needs_retry else '无法判断'}"
-                f"，已达最大重试，返回最后 Fara 结果"
+                f"，已达最大重试，返回 Fara 坐标（请人工判断）"
             )
             self._record_action(fara_result)
             return fara_result, history

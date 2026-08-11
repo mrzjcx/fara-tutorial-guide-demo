@@ -9,7 +9,7 @@
 > 适用环境：NVIDIA GPU（单卡/多卡自动适配）、Python 3.12。
 
 ## 架构与端口
-# 模型可以替换
+## 模型可以替换
 | 模块 | 模型 | 承载 | 端口 |
 |------|------|------|------|
 | Fara（坐标推理） | [`Fara1.5-4B`](https://modelscope.cn/models/microsoft/Fara1.5-4B)（视觉） | vLLM（OpenAI 兼容） | **5002** |

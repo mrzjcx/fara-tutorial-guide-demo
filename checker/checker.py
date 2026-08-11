@@ -2,7 +2,9 @@
 Checker：看图 + RAG 切片 + Fara 坐标 → 验证正确性 → 返回反馈。
 """
 import re
+import io
 import json
+import base64
 import requests
 import logging
 from typing import List, Dict, Optional
@@ -11,6 +13,42 @@ from dataclasses import dataclass
 from .config import CheckerConfig
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# 截图局部放大（②）：坐标附近区域裁剪放大，辅助精确判断
+# ============================================================
+
+def crop_zoom_base64(screenshot_b64: str, x: int, y: int,
+                     scale: int = 2, radius: int = 140) -> str:
+    """将 1000x1000 归一化坐标 (x, y) 附近的区域裁剪并放大，返回 base64 PNG。"""
+    from PIL import Image
+    img = Image.open(io.BytesIO(base64.b64decode(screenshot_b64)))
+    w, h = img.size
+    px = int(x * w / 1000)
+    py = int(y * h / 1000)
+    box = (max(0, px - radius), max(0, py - radius),
+           min(w, px + radius), min(h, py + radius))
+    crop = img.crop(box)
+    crop = crop.resize((crop.width * scale, crop.height * scale), Image.LANCZOS)
+    buf = io.BytesIO()
+    crop.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def make_combined_view(screenshot_b64: str, zoom_b64: str, target_h: int = 360) -> str:
+    """将全景缩略图 + 局部放大图横向拼接为单张图（满足 vLLM image=1 限制）。"""
+    from PIL import Image
+    full = Image.open(io.BytesIO(base64.b64decode(screenshot_b64)))
+    zoom = Image.open(io.BytesIO(base64.b64decode(zoom_b64)))
+    full = full.resize((max(1, int(full.width * target_h / full.height)), target_h), Image.LANCZOS)
+    zoom = zoom.resize((max(1, int(zoom.width * target_h / zoom.height)), target_h), Image.LANCZOS)
+    canvas = Image.new("RGB", (full.width + zoom.width, target_h), "white")
+    canvas.paste(full, (0, 0))
+    canvas.paste(zoom, (full.width, 0))
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 # ============================================================
@@ -27,12 +65,17 @@ You will receive:
 
 Your task: Look at the screenshot and decide if clicking at [x, y] is the RIGHT next action according to the tutorial.
 
-IMPORTANT — Coordinate space:
+IMPORTANT — Coordinate space & composite image:
 - The coordinate [x, y] is in 1000x1000 NORMALIZED space (top-left=0,0; bottom-right=1000,1000), the SAME space the Fara model outputs.
-- Convert it to actual screenshot pixels before judging:
-    pixel_x = x * screenshot_width  / 1000
-    pixel_y = y * screenshot_height / 1000
-- Then compare the element at that converted pixel location against the tutorial.
+- Locate it in the LEFT half of the composite image using the PERCENTAGES given in the message (left X%, top Y%). Do NOT convert using the composite image's own pixel size.
+- Then compare the element at that location against the tutorial.
+
+IMPORTANT — Zoomed-in view & no hallucination:
+- The single image is a COMPOSITE: LEFT half = full screenshot (scaled down), RIGHT half = zoomed-in crop around the suggested coordinate.
+- Use the LEFT half to LOCATE the coordinate (via the percentages); use the RIGHT half ONLY to CONFIRM element details.
+- Judge based ONLY on elements ACTUALLY VISIBLE in the screenshot. NEVER invent or assume UI elements that are not present (e.g., do NOT claim there is a "doctor list" if none is visible).
+- If the location is empty space / no clear element / you cannot see it clearly, do NOT invent an element name — say the target is unclear.
+- Tutorial text mentioning "医生/科室/支付" does NOT mean those elements exist in the screenshot. The screenshot is the ONLY ground truth.
 
 IMPORTANT — Step completion check (do this BEFORE judging the coordinate):
 - First check whether the current step's required items are ALREADY completed on the screenshot. A required item is completed when it is highlighted/selected — e.g., its border is highlighted (turns blue or another highlight color), or it appears selected/checked.
@@ -159,9 +202,17 @@ class Checker:
 
         x, y = fara_coord[0], fara_coord[1]
 
+        # ② 局部放大：坐标附近区域裁剪放大 + 全景缩略拼接为单图（满足 vLLM image=1 限制）
+        zoom_b64 = ""
+        try:
+            crop_b64 = crop_zoom_base64(screenshot_b64, x, y)
+            zoom_b64 = make_combined_view(screenshot_b64, crop_b64)
+        except Exception as e:
+            logger.debug(f"局部放大失败: {e}")
+
         # 构建消息
         user_content = self._build_messages(
-            screenshot_b64, x, y, fara_reasoning, rag_snippets, user_intent,
+            screenshot_b64, x, y, fara_reasoning, rag_snippets, user_intent, zoom_b64,
         )
 
         payload = {
@@ -225,8 +276,9 @@ class Checker:
         fara_reasoning: str,
         rag_snippets: List[Dict],
         user_intent: str,
+        zoom_b64: str = "",
     ) -> List[Dict]:
-        """构建 Checker 的 user message。"""
+        """构建 Checker 的 user message（全景图 + 可选局部放大图 + 文本）。"""
         # RAG 切片
         if rag_snippets:
             snippets_text = "\n\n".join(
@@ -239,18 +291,27 @@ class Checker:
         text = (
             f"[教程] 说明书相关步骤（RAG 检索）：\n{snippets_text}\n\n"
             f"[目标] 用户意图：{user_intent if user_intent else '未指定'}\n\n"
-            f"[模型] Fara 建议点击坐标: [{x}, {y}]（1000x1000 归一化空间，验证时需按截图实际尺寸换算像素）\n"
-            f"[记录] Fara 的推理: {fara_reasoning}\n\n"
+            f"[模型] Fara 建议点击坐标: [{x}, {y}]（1000x1000 归一化空间）\n"
+            f"       在左侧全景图中约位于：左 {x/10:.1f}% / 上 {y/10:.1f}%\n"
+            f"       （请按此百分比在左侧全景图中定位，不要用拼图自身尺寸换算）\n"
+            f"[记录] Fara 的引导: {fara_reasoning}\n\n"
             f"请判断 Fara 的建议是否正确。"
         )
 
-        return [
-            {
+        content = []
+        if zoom_b64:
+            # 单图：全景+放大的拼接图（满足 vLLM image=1 限制）
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{zoom_b64}"},
+            })
+        else:
+            content.append({
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"},
-            },
-            {"type": "text", "text": text},
-        ]
+            })
+        content.append({"type": "text", "text": text})
+        return content
 
     def _parse_verification(self, content: str) -> tuple:
         """解析 Checker 输出的 correct + reason（多格式鲁棒解析）。"""

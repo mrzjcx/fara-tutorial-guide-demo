@@ -223,23 +223,49 @@ function renderFull(d) {
   }
   dlog('[耗时] ' + (d.elapsed||'-'), 'd-time');
   let h = '';
-  h += `<div class="h">Fara 推演:</div><div style="font-size:12px">${esc(d.keywords||'-')}</div>`;
+  // ④ 降级：文字指导模式
+  if (d.degraded) {
+    h += `<div class="h" style="color:#f5a623">📝 文字指导模式（未能确定坐标，请按下方引导语操作）</div>`;
+  } else {
+    h += `<div class="h">Fara 推演:</div><div style="font-size:12px">${esc(d.keywords||'-')}</div>`;
+  }
   h += `<div class="h">RAG 切片 (${(d.snippets||[]).length} 块):</div>`;
   for (const s of (d.snippets||[])) h += `<div style="font-size:12px">  [${s.chunk_id}] ${s.step} (${s.score})</div>`;
-  h += `<div class="h">Fara 坐标:</div>`;
-  h += `<div class="coord">${JSON.stringify(d.coordinate)}</div>`;
-  h += `<div class="dim">${esc(d.reasoning||'')}</div>`;
+  // ① 引导语（面向用户的操作指引）
+  h += `<div class="h">引导语（请照做）:</div>`;
+  h += `<div class="coord" style="font-size:13px;color:#1a73e8;white-space:pre-wrap">${esc(d.reasoning||'')}</div>`;
+  // 坐标（降级时无）
+  if (d.degraded) {
+    h += `<div class="info">坐标: 无（模型未确定，请按引导语手动操作）</div>`;
+  } else {
+    h += `<div class="h">Fara 坐标:</div>`;
+    h += `<div class="coord">${JSON.stringify(d.coordinate)}</div>`;
+  }
   if (d.checker) {
     const c = d.checker;
     h += `<div class="h">Checker:</div>`;
     h += `<div class="${c.verified?'ok':'fail'}">${c.verified?'正确':'错误'}: ${esc(c.reason||'')}</div>`;
+    // Checker 判错但坐标照常返回：提示用户自行核对（0.8B 仅供参考）
+    if (!c.verified) {
+      h += `<div class="fail" style="border:2px solid #f5a623;color:#f5a623">⚠️ Checker 认为该坐标可能不正确（仅供参考），请对照引导语和红圈自行核对后再点击</div>`;
+    }
+  }
+  // ⑤ 人机确认点
+  if (d.needs_confirmation) {
+    h += `<div class="fail" style="border:2px solid #f5a623;color:#f5a623">⚠️ 该操作涉及提交/确认（不可逆），请确认无误后再执行！</div>`;
   }
   h += `<div class="info">${d.elapsed||'-'} | Token: ${d.tokens||'-'}</div>`;
   output.innerHTML = h;
 
-  // 画红圈标注
-  if (d.coordinate && Array.isArray(d.coordinate) && typeof d.coordinate[0]==='number') {
-    drawAnnotation(d.coordinate[0], d.coordinate[1]);
+  // 画红圈标注（降级不画；需人工确认的先弹窗）
+  if (!d.degraded && d.coordinate && Array.isArray(d.coordinate) && typeof d.coordinate[0]==='number') {
+    if (d.needs_confirmation) {
+      if (confirm('⚠️ 该操作涉及提交/确认（不可逆操作），确认继续吗？')) {
+        drawAnnotation(d.coordinate[0], d.coordinate[1]);
+      }
+    } else {
+      drawAnnotation(d.coordinate[0], d.coordinate[1]);
+    }
   }
 }
 
@@ -401,8 +427,8 @@ def api_analyze():
 
     elapsed = f"{time.time() - t0:.1f}s"
 
-    # 组装响应
-    snippets = rag.query(intent, top_k=3)
+    # 组装响应：优先展示 loop 实际喂给模型的切片（含补全），否则退回旧查询
+    snippets = getattr(loop, "_last_snippets", None) or rag.query(intent, top_k=3)
     # keywords 用 plan_rag_query 结果（来自 loop 内部缓存），回退用首轮 Fara reasoning
     keywords = loop._query_cache.get((intent, step_context), "")
     if not keywords and history:
@@ -417,6 +443,8 @@ def api_analyze():
         "reasoning": result.reasoning[:200],
         "elapsed": elapsed,
         "tokens": f"prompt={result.prompt_tokens} comp={result.completion_tokens}",
+        "degraded": getattr(result, "degraded", False),
+        "needs_confirmation": getattr(result, "needs_confirmation", False),
     }
     for entry in history:
         cr = entry.get("checker")
