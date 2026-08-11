@@ -42,7 +42,7 @@ def _is_summary_like(text: str) -> bool:
     return False
 
 
-def _build_fallback_keywords(rag_retriever, user_intent: str) -> str:
+def _build_fallback_keywords(rag_retriever, user_intent: str, step_context: str = "") -> str:
     """从索引中提取所有编号步骤标题，拼接为兜底关键词。"""
     all_steps = []
     for i in range(len(rag_retriever._index)):
@@ -50,39 +50,49 @@ def _build_fallback_keywords(rag_retriever, user_intent: str) -> str:
         # 只收集编号步骤（如 "2.1 步骤一：..."），跳过概述/章标题/按钮速查表
         if ch.step_title and ch.step_title[0].isdigit():
             all_steps.append(ch.step_title)
-    return user_intent + ' ' + ' '.join(all_steps)
+    prefix = step_context if step_context else user_intent
+    return prefix + ' ' + ' '.join(all_steps)
 
 
 def _fill_step_gaps(rag_retriever, snippets: List[Dict], max_n: int) -> List[Dict]:
-    """补全 FAISS 结果中同一 section 内缺失的中间步骤。"""
-    if not snippets or len(snippets) >= max_n:
+    """激进补全：以得分最高的切片为锚点，返回其所属 section 内的连续步骤区间。
+
+    优先包含锚点后续步骤（向后扩展），不足再向前补前序步骤，凑满 max_n。
+    结果按文档顺序排序——保证 Fara/Checker 拿到的是连续的步骤上下文，
+    而非零散的、可能跨流程的检索命中。
+    """
+    if not snippets:
         return snippets
-    # 找到得分最高的 chunk 所属的 section
     best = max(snippets, key=lambda s: s.get("score", 0))
     target_section = best.get("section", "")
     if not target_section or target_section == "概述":
         return snippets
-    # 收集该 section 中已有的 chunk_id
-    existing_ids = {s["chunk_id"] for s in snippets}
-    # 扫描该 section 中的步骤索引范围
-    section_indices = []
-    for i in range(len(rag_retriever._index)):
-        ch = rag_retriever._index.get_chunk(i)
-        if ch.section_title == target_section:
-            section_indices.append(i)
+    # 该 section 内所有 chunk 索引（按文档顺序）
+    section_indices = [
+        i for i in range(len(rag_retriever._index))
+        if rag_retriever._index.get_chunk(i).section_title == target_section
+    ]
     if len(section_indices) < 2:
         return snippets
-    lo, hi = min(section_indices), max(section_indices)
-    # 插入 lo~hi 之间缺失的 chunk（优先同 section）
-    filled = list(snippets)
-    for i in range(lo, hi + 1):
+    anchor = rag_retriever._index._id_to_idx.get(best["chunk_id"])
+    if anchor not in section_indices:
+        return snippets
+    pos = section_indices.index(anchor)
+    # 以锚点为中心扩展，优先向后（后续步骤）
+    chosen = [anchor]
+    forward = section_indices[pos + 1:]
+    backward = list(reversed(section_indices[:pos]))
+    fi, bi = 0, 0
+    while len(chosen) < max_n and (fi < len(forward) or bi < len(backward)):
+        if fi < len(forward):
+            chosen.append(forward[fi])
+            fi += 1
+        elif bi < len(backward):
+            chosen.append(backward[bi])
+            bi += 1
+    filled = []
+    for i in sorted(chosen):
         ch = rag_retriever._index.get_chunk(i)
-        if ch.chunk_id in existing_ids:
-            continue
-        if ch.step_title in ('概述', ch.section_title, ''):
-            continue
-        if ch.section_title != target_section:
-            continue  # 只补同 section
         filled.append({
             "chunk_id": ch.chunk_id,
             "section": ch.section_title,
@@ -95,7 +105,6 @@ def _fill_step_gaps(rag_retriever, snippets: List[Dict], max_n: int) -> List[Dic
             "page": ch.page_start,
             "image_path": ch.page_image_path,
         })
-    filled.sort(key=lambda s: rag_retriever._index._id_to_idx.get(s["chunk_id"], 999))
     return filled[:max_n]
 
 
@@ -129,7 +138,7 @@ class FaraCheckerLoop:
         self._checker = checker
         self._max_retries = max_retries
         self._step_history: List[str] = []  # P0-1: 已完成微动作
-        self._query_cache: Dict[str, str] = {}  # P2-6: intent→keywords: 已完成微动作列表
+        self._query_cache: Dict[Tuple[str, str], str] = {}  # P2-6: (intent, step_context)→keywords
 
     def reset_context(self):
         """重置步骤上下文（新任务开始前调用）。"""
@@ -165,18 +174,19 @@ class FaraCheckerLoop:
         # Step 0: RAG 自动生成说明书结构摘要 + 关键词提取
         # ============================================================
         manual_summary = self._rag.get_summary()
-        # P2-6: 缓存命中则跳过提取
-        if user_intent in self._query_cache:
-            rag_keywords = self._query_cache[user_intent]
+        # P2-6: 缓存 key = 意图 + 当前进度（进度变化 → 重新检索下一步相关步骤）
+        cache_key = (user_intent, step_context)
+        if cache_key in self._query_cache:
+            rag_keywords = self._query_cache[cache_key]
             logger.info(f"查询缓存命中: {rag_keywords[:60]}...")
         else:
-            rag_keywords = self._fara.plan_rag_query(user_intent, manual_summary)
+            rag_keywords = self._fara.plan_rag_query(user_intent, manual_summary, step_context)
             # 验证: 检测摘要复述（含文档结构标记、句号、或过长）
             if _is_summary_like(rag_keywords):
                 logger.warning("plan_rag_query 输出疑似摘要复述，使用 intent + 步标题兜底")
-                rag_keywords = _build_fallback_keywords(self._rag, user_intent)
+                rag_keywords = _build_fallback_keywords(self._rag, user_intent, step_context)
             else:
-                self._query_cache[user_intent] = rag_keywords  # 仅缓存有效关键词
+                self._query_cache[cache_key] = rag_keywords  # 仅缓存有效关键词
             logger.info(f"查询关键词: {rag_keywords[:80]}...")
 
         # ============================================================

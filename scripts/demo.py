@@ -91,11 +91,14 @@ def run_demo(
     user_intent: str,
     loop: FaraCheckerLoop,
     top_k_rag: int = 3,
+    step_context: str = "",
 ):
     """运行完整工作流，委托 FaraCheckerLoop.run() 处理。"""
 
     print("\n" + "=" * 65)
     print(f"  [目标] 用户意图: {user_intent}")
+    if step_context:
+        print(f"  [进度] 已完成步骤: {step_context}")
     print("=" * 65)
 
     # ── 主流程（RAG摘要 + Fara推演 + 检索 + 坐标 + Checker 全在 loop.run() 内）──
@@ -103,6 +106,7 @@ def run_demo(
     result, history = loop.run(
         screenshot_b64=screenshot_b64,
         user_intent=user_intent,
+        step_context=step_context,
         top_k_rag=top_k_rag,
     )
 
@@ -211,6 +215,7 @@ def main():
     parser.add_argument("--top-k", type=int, default=DEFAULTS["rag_top_k"])
     parser.add_argument("--max-retries", type=int, default=DEFAULTS["max_retries"])
     parser.add_argument("--save-screenshot", help="实时截图保存路径")
+    parser.add_argument("--step", default="", help="已完成步骤描述（可选，如：已选日期和科室）")
     args = parser.parse_args()
 
     # ── 初始化 RAG（两种模式都需要）──
@@ -255,6 +260,7 @@ def main():
         user_intent=args.intent,
         loop=loop,
         top_k_rag=args.top_k,
+        step_context=args.step,
     )
 
 

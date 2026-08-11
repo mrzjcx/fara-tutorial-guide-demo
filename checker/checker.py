@@ -27,6 +27,18 @@ You will receive:
 
 Your task: Look at the screenshot and decide if clicking at [x, y] is the RIGHT next action according to the tutorial.
 
+IMPORTANT — Coordinate space:
+- The coordinate [x, y] is in 1000x1000 NORMALIZED space (top-left=0,0; bottom-right=1000,1000), the SAME space the Fara model outputs.
+- Convert it to actual screenshot pixels before judging:
+    pixel_x = x * screenshot_width  / 1000
+    pixel_y = y * screenshot_height / 1000
+- Then compare the element at that converted pixel location against the tutorial.
+
+IMPORTANT — Step completion check (do this BEFORE judging the coordinate):
+- First check whether the current step's required items are ALREADY completed on the screenshot. A required item is completed when it is highlighted/selected — e.g., its border is highlighted (turns blue or another highlight color), or it appears selected/checked.
+- If ALL required items of the current step are already selected/highlighted, then clicking the "下一步"/confirm button to move on is CORRECT — it is NOT skipping a step.
+- Only judge "skipping a step" as WRONG when the required items are NOT yet selected/highlighted on the screenshot.
+
 Output format (STRICT):
 <tool_call>{"name": "verify", "arguments": {"correct": true_or_false, "reason": "one sentence in Chinese"}}</tool_call>
 
@@ -35,12 +47,13 @@ Rules:
 - If the element at [x, y] matches the tutorial's purpose → correct: true
 - If the element is wrong, irrelevant, or skips a step → correct: false
 - Examples of WRONG suggestions:
-  - Tutorial says "select a department" but coordinate points to "下一步" button (skipping selection)
+  - Tutorial says "select a department" but the department is NOT selected and coordinate points to "下一步" button (skipping selection)
   - Tutorial says "fill name field" but coordinate points to submit button (skipping required fields)
   - Coordinate points to empty space or wrong UI element
 - Examples of CORRECT suggestions:
   - Tutorial says "select 骨科" and coordinate points to "骨科" in the department list
   - Tutorial says "click 下一步" and an item IS already selected, coordinate points to the button
+  - Tutorial says "select date and department" but both are ALREADY highlighted/selected on the screenshot, and coordinate points to "下一步" → correct (the step is already completed, moving on is right)
 - Keep reason short (one sentence in Chinese).
 - If you are unsure, use your best judgment."""
 
@@ -65,8 +78,8 @@ class CheckerResult:
 
     @property
     def needs_retry(self) -> bool:
-        """是否需要让 Fara 重试（明确错误 + 有反馈理由）。"""
-        return self.enabled and self.verified is False and bool(self.reason)
+        """是否需要让 Fara 重试（明确判错即可；reason 为空时 verify() 已兜底）。"""
+        return self.enabled and self.verified is False
 
 
 class Checker:
@@ -189,6 +202,9 @@ class Checker:
 
         # 解析验证结果
         verified, reason = self._parse_verification(content)
+        # 判错但 reason 为空 → 兜底反馈，保证重试信息能传达给 Fara
+        if verified is False and not reason:
+            reason = "Checker 认为该坐标不正确，请重新分析截图后给出正确的点击位置。"
 
         return CheckerResult(
             enabled=True,
@@ -223,7 +239,7 @@ class Checker:
         text = (
             f"[教程] 说明书相关步骤（RAG 检索）：\n{snippets_text}\n\n"
             f"[目标] 用户意图：{user_intent if user_intent else '未指定'}\n\n"
-            f"[模型] Fara 建议点击坐标: [{x}, {y}]\n"
+            f"[模型] Fara 建议点击坐标: [{x}, {y}]（1000x1000 归一化空间，验证时需按截图实际尺寸换算像素）\n"
             f"[记录] Fara 的推理: {fara_reasoning}\n\n"
             f"请判断 Fara 的建议是否正确。"
         )
@@ -237,21 +253,41 @@ class Checker:
         ]
 
     def _parse_verification(self, content: str) -> tuple:
-        """解析 Checker 输出的 correct + reason。"""
+        """解析 Checker 输出的 correct + reason（多格式鲁棒解析）。"""
         correct_match = re.search(
             r'"correct"\s*:\s*(true|false)', content, re.IGNORECASE
         )
-        reason_match = re.search(r'"reason"\s*:\s*"([^"]*)"', content)
-
         verified = None
         if correct_match:
             verified = correct_match.group(1).lower() == "true"
 
         reason = ""
-        if reason_match:
-            reason = reason_match.group(1)
-        else:
-            # fallback: <tool_call> 前面的文本
-            reason = content.split("<tool_call>")[0].strip() if "<tool_call>" in content else content.strip()
+        # ① 优先：整体解析 <tool_call> 内 JSON（json.loads 正确处理中文/转义）
+        tc = re.search(r'<tool_call>(.*?)</tool_call>', content, re.DOTALL)
+        if tc:
+            try:
+                obj = json.loads(tc.group(1))
+                args = obj.get("arguments", obj) if isinstance(obj, dict) else {}
+                if isinstance(args, dict):
+                    reason = args.get("reason", "") or ""
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # ② 整体 JSON 解析失败 → 双引号正则
+        if not reason:
+            reason_match = re.search(r'"reason"\s*:\s*"([^"]*)"', content)
+            if reason_match:
+                reason = reason_match.group(1)
+        # ③ 单引号
+        if not reason:
+            reason_match = re.search(r"'reason'\s*:\s*'([^']*)'", content)
+            if reason_match:
+                reason = reason_match.group(1)
+        # ④ fallback：<tool_call> 之前的文本（去除思维链标记）
+        if not reason:
+            if "<tool_call>" in content:
+                reason = content.split("<tool_call>")[0].strip()
+            else:
+                reason = content.strip()
+            reason = re.sub(r'</?think>', '', reason).strip()
 
         return verified, reason

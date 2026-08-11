@@ -99,6 +99,11 @@ body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; 
   </div>
 
   <div class="row">
+    <label>已完成步骤:</label>
+    <input id="stepCtx" placeholder="可选，如：已选日期和科室">
+  </div>
+
+  <div class="row">
     <label>页面:</label>
     <select id="pageUrl" onchange="document.getElementById('appFrame').src=this.value">
       <option value="{{ test_url }}/register_app.html">在线挂号</option>
@@ -161,6 +166,7 @@ async function captureFrame() {
 async function runFull() {
   const intent = $('intent').value.trim();
   if (!intent) { alert('请输入意图'); return; }
+  const stepCtx = $('stepCtx').value.trim();
 
   setLoading(true);
   debugLog.innerHTML = '';
@@ -176,7 +182,7 @@ async function runFull() {
     const resp = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ intent, screenshot })
+      body: JSON.stringify({ intent, screenshot, step_context: stepCtx })
     });
     const d = await resp.json();
     dlog('[响应] 收到', 'd-step');
@@ -375,6 +381,7 @@ def api_analyze():
     data = request.get_json()
     intent = data.get("intent", "")
     screenshot_b64 = data.get("screenshot", "")
+    step_context = data.get("step_context", "")
 
     if not screenshot_b64:
         return jsonify({"error": "缺少截图"}), 400
@@ -386,6 +393,7 @@ def api_analyze():
         result, history = loop.run(
             screenshot_b64=screenshot_b64,
             user_intent=intent,
+            step_context=step_context,
             top_k_rag=5,
         )
     except Exception as e:
@@ -396,7 +404,7 @@ def api_analyze():
     # 组装响应
     snippets = rag.query(intent, top_k=3)
     # keywords 用 plan_rag_query 结果（来自 loop 内部缓存），回退用首轮 Fara reasoning
-    keywords = loop._query_cache.get(intent, "")
+    keywords = loop._query_cache.get((intent, step_context), "")
     if not keywords and history:
         fr = history[0].get("fara")
         if fr and fr.reasoning:

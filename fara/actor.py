@@ -29,7 +29,8 @@ Rules:
 - Compare the screenshot with the tutorial to determine which step the user is currently on.
 - Within a step, suggest the NEXT SINGLE micro-action (one click, one field to fill), not the step's final action.
 - If a step requires filling multiple fields → suggest the FIRST empty field, not the submit button.
-- If a step is already completed (e.g., item is highlighted/selected), move to the next step.
+- If a step is already completed, move to the next step.
+- How to tell a step is completed: the target item is highlighted/selected — e.g., its border is highlighted (turns blue or another highlight color), or it appears selected/checked.
 - x is horizontal (left to right), y is vertical (top to bottom).
 - Coordinates are in 1000x1000 normalized space (top-left=0,0; bottom-right=1000,1000).
 - If you cannot determine the next action, output coordinate: [-1, -1].
@@ -38,7 +39,7 @@ Rules:
 
 FORM-FILLING GUIDANCE (Any step with input fields):
 - When the current step contains text input fields, check each one CAREFULLY from top to bottom.
- - [警告] CRITICAL: If a field already has text inside → SKIP IT. Move to the next field. Do NOT output its coordinate.
+ - [WARNING] CRITICAL: If a field already has text inside → SKIP IT. Move to the next field. Do NOT output its coordinate.
 - Only output the coordinate of a field that is COMPLETELY EMPTY (no visible characters at all).
 - Do NOT output coordinates for fields that are already filled — the user does not need to click them.
 - Decision flow:
@@ -298,32 +299,35 @@ class FaraActor:
 
     # ==================== RAG 查询规划（纯文本，不带截图） ====================
 
-    PLAN_RAG_QUERY_PROMPT = """You are a manual retrieval planner. Given a user's intent, output the search keywords needed.
+    PLAN_RAG_QUERY_PROMPT = """You are a manual retrieval planner. Given a user's intent, the manual's structure summary, and the current progress, output the EXACT step titles to retrieve.
 
-    RULES:
-    - Output ONLY space-separated Chinese keywords. NO explanation. NO punctuation. NO line breaks.
-    - Cover ALL steps in the relevant workflow, in order.
+RULES:
+- Copy step titles VERBATIM from the structure summary (e.g. "2.2 步骤二：选择医生"), space-separated, in workflow order.
+- Prioritize the step(s) matching the CURRENT progress; then cover the remaining steps of the same workflow.
+- Output ONLY the step titles. NO explanation. NO punctuation. NO extra words.
 
-    Examples:
-    用户: "我要挂号" → 在线挂号 选择科室 选择医生 选择时间 确认挂号
-    用户: "缴费" → 在线缴费 账单列表 选择支付方式 确认支付
-    用户: "微信支付" → 在线缴费 选择支付方式 微信支付"""
+Examples:
+用户: "我要挂号"
+摘要: [2.1 步骤一：选择就诊日期与科室] 日期滑块... [2.2 步骤二：选择医生] 点击医生卡片...
+→ 2.1 步骤一：选择就诊日期与科室 2.2 步骤二：选择医生 2.3 步骤三：选择就诊时间 2.4 步骤四：确认挂号"""
 
-    def plan_rag_query(self, user_intent: str, manual_summary: str = "") -> str:
+    def plan_rag_query(self, user_intent: str, manual_summary: str = "", step_context: str = "") -> str:
         """
-        纯文本推演：根据用户意图 + 说明书摘要，推理需要哪些章节。
+        纯文本推演：根据用户意图 + 说明书摘要 + 当前进度，推理需要哪些步骤标题。
         不带截图，节省图像 token 开销。
 
         Args:
             user_intent: 用户意图描述
             manual_summary: RAG 自动生成的说明书结构摘要
+            step_context: 当前已完成/进行中的步骤描述（用于优先检索下一步）
 
         Returns:
-            中文检索关键词（空格分隔），如 "在线挂号 选择科室 选择医生"
+            中文步骤标题关键词（空格分隔），如 "2.2 步骤二：选择医生 2.3 步骤三：选择就诊时间"
         """
         prompt = self._cfg.plan_rag_query_prompt or self.PLAN_RAG_QUERY_PROMPT
         summary_block = f"\n\n说明书结构摘要：\n{manual_summary}" if manual_summary else ""
-        user_text = f"用户意图：{user_intent if user_intent else '未指定'}{summary_block}\n\n请输出需要检索的说明书章节关键词。"
+        progress_block = f"\n\n当前进度（已完成/进行中的步骤）：{step_context}" if step_context else ""
+        user_text = f"用户意图：{user_intent if user_intent else '未指定'}{summary_block}{progress_block}\n\n请输出需要检索的说明书步骤标题。"
 
         payload = {
             "model": self._cfg.model_path,
