@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 运行产物
+logs/
+output/
+*.log
+
+# RAG 构建产物（索引/页面图，重新构建即可）
+rag/index/
+rag/pages/
+
+# 环境/系统
+.env
+.venv/
+venv/
+.DS_Store

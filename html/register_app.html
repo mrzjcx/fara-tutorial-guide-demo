@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧医院 · 预约挂号</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f6fa;color:#333;display:flex;justify-content:center;padding:20px 12px;min-height:100vh}
+.app{width:100%;max-width:720px}
+.top-bar{background:linear-gradient(135deg,#1a73e8,#4a9af5);color:#fff;padding:20px 24px;border-radius:16px 16px 0 0;display:flex;align-items:center;gap:14px}
+.top-bar .icon{font-size:36px}.top-bar h1{font-size:19px;font-weight:700}.top-bar .sub{font-size:11px;opacity:.8}
+.home-link{color:#fff;text-decoration:none;font-size:11px;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:12px;flex-shrink:0;display:inline-flex;align-items:center;gap:4px}
+.steps{display:flex;background:#fff}
+.step{flex:1;text-align:center;padding:14px 4px;font-size:12px;color:#bbb;position:relative}
+.step::after{content:'';position:absolute;bottom:0;left:10%;width:80%;height:3px;background:#e8e8e8;border-radius:2px}
+.step.active{color:#1a73e8;font-weight:600}.step.active::after{background:#1a73e8}
+.step.done{color:#34a853}.step.done::after{background:#34a853}
+.content{background:#fff;padding:24px;min-height:400px}
+.content h2{font-size:17px;margin-bottom:16px;color:#333}.page{display:none}.page.active{display:block}
+.date-swiper{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:20px}
+.date-chip{flex-shrink:0;text-align:center;padding:10px 16px;border-radius:12px;border:1px solid #e8e8e8;cursor:pointer;min-width:62px;transition:.15s;font-size:11px}
+.date-chip:hover{border-color:#1a73e8}.date-chip.selected{background:#1a73e8;color:#fff;border-color:#1a73e8}
+.date-chip .day{font-size:18px;font-weight:700;display:block}.date-chip .week{font-size:10px;opacity:.7}
+.dept-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.dept-card{border:1px solid #e8e8e8;border-radius:12px;padding:16px 10px;text-align:center;cursor:pointer;transition:.15s}
+.dept-card:hover{border-color:#1a73e8;box-shadow:0 4px 12px rgba(26,115,232,.1)}
+.dept-card.selected{border-color:#1a73e8;background:#e8f0fe}
+.dept-card .icon{font-size:32px;display:block;margin-bottom:6px}.dept-card .name{font-size:13px;font-weight:600}
+.doc-card{display:flex;align-items:center;gap:14px;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.doc-card:hover{border-color:#1a73e8}.doc-card.selected{border-color:#1a73e8;background:#e8f0fe}
+.doc-card .avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.doc-card .info{flex:1;min-width:0}.doc-card .doc-name{font-size:15px;font-weight:600}
+.doc-card .doc-meta{font-size:11px;color:#999;margin-top:2px}
+.doc-card .fee{color:#e67e22;font-weight:700;font-size:15px;white-space:nowrap}
+.doc-card .slots{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.slot-tag{padding:2px 8px;border-radius:6px;font-size:10px;background:#e8f0fe;color:#1a73e8;white-space:nowrap}
+.time-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.time-slot{border:1px solid #e8e8e8;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer;font-size:13px;transition:.15s}
+.time-slot:hover{border-color:#1a73e8}.time-slot.selected{border-color:#1a73e8;background:#e8f0fe;color:#1a73e8;font-weight:600}
+.time-slot.full{background:#f5f5f5;color:#ccc;cursor:not-allowed}
+.time-section{margin-bottom:16px}.time-section h3{font-size:13px;color:#999;margin-bottom:8px}
+.confirm-panel{background:#f8fafc;border-radius:12px;padding:18px;margin-bottom:12px}
+.confirm-panel .row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.confirm-panel .row .label{color:#999}
+.form-row{margin-top:14px}.form-row label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px}
+.form-row input,.form-row select{width:100%;padding:10px 14px;font-size:14px;border:1px solid #e0e0e0;border-radius:8px;outline:none;background:#fff}
+.form-row input:focus{border-color:#1a73e8}
+.flex-row{display:flex;gap:10px}.flex-row .form-row{flex:1}
+.insure-toggle{display:flex;align-items:center;gap:8px;margin-top:14px;padding:12px;background:#f0faf4;border-radius:8px;font-size:13px;cursor:pointer}
+.success-box{text-align:center;padding:40px 20px}.success-box .icon{font-size:64px}
+.success-box h2{color:#34a853;margin:12px 0 8px}.success-box .detail{font-size:13px;color:#666;margin:3px 0}
+.success-box .order-no{font-size:18px;font-weight:700;color:#1a73e8;margin:12px 0}
+.bottom-bar{background:#fff;padding:16px 24px;border-radius:0 0 16px 16px;border-top:1px solid #eee;display:flex;gap:12px;justify-content:flex-end}
+.btn{padding:10px 24px;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:.15s}
+.btn-outline{background:#fff;color:#1a73e8;border:1px solid #1a73e8}
+.btn-primary{background:#1a73e8;color:#fff}.btn-primary:hover{background:#1557b0}
+.btn-success{background:#34a853;color:#fff}.btn-success:hover{background:#2d9249}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="top-bar"><span class="icon">🏥</span><div style="flex:1"><h1>智慧医院 · 预约挂号</h1><div class="sub">三甲医院 在线挂号平台</div></div><a class="home-link" href="home.html">🏠 主页</a></div>
+<div class="steps" id="stepBar"><div class="step active">选择科室</div><div class="step">选择医生</div><div class="step">选择时间</div><div class="step">确认挂号</div></div>
+<div class="content" id="content"></div>
+<div class="bottom-bar"><button class="btn btn-outline" id="btnPrev" onclick="prev()" disabled>← 上一步</button><button class="btn btn-primary" id="btnNext" onclick="next()" disabled>下一步 →</button><button class="btn btn-success" id="btnSubmit" onclick="submit()" style="display:none">✅ 确认挂号</button></div>
+</div>
+<script>
+let step=1,sDept='',sDoc='',sFee='',sTime='',sDate=0;
+const dates=[];for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()+i);dates.push(d)}
+const depts=[{n:'内科',i:'😷'},{n:'外科',i:'🩻'},{n:'骨科',i:'🦴'},{n:'儿科',i:'👶'},{n:'眼科',i:'👁️'},{n:'皮肤科',i:'🧴'},{n:'妇产科',i:'🤰'},{n:'口腔科',i:'🦷'},{n:'中医科',i:'🌿'}];
+const docs={骨科:[{n:'吴大伟',t:'主任医师/教授',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['08:30','09:30','10:30','14:00','15:30']},{n:'郑红梅',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#fce4ec',s:['09:00','10:00','11:00','14:30']},{n:'陈志明',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e8f5e9',s:['08:00','09:30','11:00','15:00']}],内科:[{n:'张伟民',t:'主任医师',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['08:30','10:00','14:00']},{n:'李芳华',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#fce4ec',s:['09:00','11:00','15:00']},{n:'王建国',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e8f5e9',s:['08:00','10:30','14:30']}],外科:[{n:'赵志强',t:'主任医师',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['08:00','10:30','14:30']},{n:'钱晓燕',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#fce4ec',s:['09:30','11:00','15:00']},{n:'孙建国',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e8f5e9',s:['08:30','10:00','15:30']}],儿科:[{n:'孙丽丽',t:'主任医师',a:'👩‍⚕️',f:25,c:'#fce4ec',s:['08:00','10:00','14:00']},{n:'周小军',t:'副主任医师',a:'👨‍⚕️',f:15,c:'#e3f2fd',s:['09:00','11:00','15:00']},{n:'刘敏华',t:'主治医师',a:'👩‍⚕️',f:10,c:'#e8f5e9',s:['08:30','10:30','14:30']}],眼科:[{n:'黄明亮',t:'主任医师',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['09:00','11:00','14:30']},{n:'刘慧敏',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#fce4ec',s:['08:00','10:00','15:00']},{n:'何志远',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e8f5e9',s:['08:30','10:30','14:00']}],皮肤科:[{n:'杨文博',t:'主任医师',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['08:30','10:00','15:00']},{n:'马晓燕',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#fce4ec',s:['09:00','11:00','14:00']},{n:'许芳华',t:'主治医师',a:'👩‍⚕️',f:10,c:'#e8f5e9',s:['08:00','10:30','15:30']}],妇产科:[{n:'周晓燕',t:'主任医师',a:'👩‍⚕️',f:25,c:'#fce4ec',s:['09:00','10:30','14:00']},{n:'林雅琴',t:'副主任医师',a:'👩‍⚕️',f:15,c:'#e3f2fd',s:['08:00','11:00','15:00']},{n:'陈淑芬',t:'主治医师',a:'👩‍⚕️',f:10,c:'#e8f5e9',s:['08:30','10:00','14:30']}],口腔科:[{n:'刘明达',t:'副主任医师',a:'👨‍⚕️',f:15,c:'#e8f5e9',s:['08:00','10:00','15:30']},{n:'赵雅琳',t:'主任医师',a:'👩‍⚕️',f:25,c:'#fce4ec',s:['09:00','11:00','14:00']},{n:'黄俊杰',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e3f2fd',s:['08:30','10:30','14:30']}],中医科:[{n:'马晓琳',t:'主治医师',a:'👩‍⚕️',f:10,c:'#fce4ec',s:['09:30','11:00','14:30']},{n:'李时珍',t:'主任医师/教授',a:'👨‍⚕️',f:25,c:'#e3f2fd',s:['08:00','10:00','15:00']},{n:'张仲景',t:'副主任医师',a:'👨‍⚕️',f:15,c:'#e8f5e9',s:['08:30','10:30','14:00']}]};
+
+function rd(){
+  sDept='';sDoc='';sFee='';document.getElementById('btnNext').disabled=true;
+  let h='<h2>📅 选择就诊日期</h2><div class="date-swiper">';
+  dates.forEach((d,i)=>{const w=['日','一','二','三','四','五','六'][d.getDay()];h+=`<div class="date-chip${i===sDate?' selected':''}" onclick="sDate=${i};rd()"><span class="day">${d.getDate()}</span><span class="week">${d.getMonth()+1}月 周${w}</span></div>`});
+  h+='</div><h2>🏥 选择科室</h2><div class="dept-grid">';
+  depts.forEach(d=>{h+=`<div class="dept-card" onclick="pkD('${d.n}')"><span class="icon">${d.i}</span><div class="name">${d.n}</div></div>`});
+  h+='</div>';document.getElementById('content').innerHTML=h;
+}
+function pkD(n){sDept=n;document.getElementById('btnNext').disabled=false;document.querySelectorAll('.dept-card').forEach(c=>c.classList.toggle('selected',c.querySelector('.name').textContent===n))}
+
+function r2(){
+  sDoc='';sFee='';document.getElementById('btnNext').disabled=true;
+  const list=docs[sDept]||[{n:'值班医生',t:'主治医师',a:'👨‍⚕️',f:10,c:'#e8f5e9',s:['08:00','09:00','10:00','14:00','15:00']}];
+  let h=`<h2>👨‍⚕️ ${sDept} — 出诊医生</h2>`;
+  list.forEach(d=>{h+=`<div class="doc-card" onclick="pkC('${d.n}','${d.f}')"><div class="avatar" style="background:${d.c}">${d.a}</div><div class="info"><div class="doc-name">${d.n}</div><div class="doc-meta">${d.t}</div><div class="slots">${d.s.map(s=>`<span class="slot-tag">${s}</span>`).join('')}</div></div><div class="fee">¥${d.f}</div></div>`});
+  document.getElementById('content').innerHTML=h;
+}
+function pkC(n,f){sDoc=n;sFee=f;document.getElementById('btnNext').disabled=false;document.querySelectorAll('.doc-card').forEach(c=>c.classList.toggle('selected',c.querySelector('.doc-name').textContent===n))}
+
+function r3(){
+  sTime='';document.getElementById('btnNext').disabled=true;
+  const ts=['08:00-08:30','08:30-09:00','09:00-09:30','09:30-10:00','10:00-10:30','10:30-11:00','13:30-14:00','14:00-14:30','14:30-15:00','15:00-15:30','15:30-16:00','16:00-16:30'];
+  const am=ts.slice(0,6),pm=ts.slice(6);
+  let h=`<h2>⏰ 选择就诊时间</h2><div class="confirm-panel"><div class="row"><span class="label">科室</span><span>${sDept}</span></div><div class="row"><span class="label">医生</span><span>${sDoc}</span></div><div class="row"><span class="label">日期</span><span>${dates[sDate].toLocaleDateString('zh-CN')}</span></div></div><div class="time-section"><h3>上午</h3><div class="time-grid">`;
+  am.forEach((t,i)=>{const full=i===3;h+=`<div class="time-slot${full?' full':''}" ${full?'':`onclick="pkT('${t}')"`}>${t}${full?' (约满)':''}</div>`});
+  h+='</div></div><div class="time-section"><h3>下午</h3><div class="time-grid">';
+  pm.forEach((t,i)=>{const full=i===2||i===4;h+=`<div class="time-slot${full?' full':''}" ${full?'':`onclick="pkT('${t}')"`}>${t}${full?' (约满)':''}</div>`});
+  h+='</div></div>';document.getElementById('content').innerHTML=h;
+}
+function pkT(t){sTime=t;document.getElementById('btnNext').disabled=false;document.querySelectorAll('.time-slot').forEach(c=>c.classList.toggle('selected',c.textContent.trim().startsWith(t)))}
+
+function r4(){
+  let h=`<h2>📋 确认挂号信息</h2><div class="confirm-panel"><div class="row"><span class="label">就诊日期</span><span>${dates[sDate].toLocaleDateString('zh-CN')}</span></div><div class="row"><span class="label">就诊科室</span><span style="font-weight:600">${sDept}</span></div><div class="row"><span class="label">就诊医生</span><span style="font-weight:600">${sDoc}</span></div><div class="row"><span class="label">就诊时间</span><span style="color:#1a73e8;font-weight:600">${sTime}</span></div><div class="row"><span class="label">挂号费</span><span style="color:#e67e22;font-weight:700">¥${sFee}.00</span></div></div><div class="flex-row"><div class="form-row"><label>就诊人</label><input id="pN" placeholder="姓名"></div><div class="form-row"><label>手机号</label><input id="pP" placeholder="11位手机号"></div></div><div class="insure-toggle"><input type="checkbox" id="uI" checked onchange="this.nextElementSibling.textContent=this.checked?'使用医保统筹（个人账户 ¥1,280.50）':'自费支付'"><span>使用医保统筹（个人账户 ¥1,280.50）</span></div>`;
+  document.getElementById('content').innerHTML=h;
+}
+function r5(no){
+  document.getElementById('content').innerHTML=`<div class="success-box"><div class="icon">✅</div><h2>挂号成功</h2><div class="order-no">挂号单号：${no}</div><div class="detail">${sDept} · ${sDoc}</div><div class="detail">${dates[sDate].toLocaleDateString('zh-CN')} ${sTime}</div><div class="detail" style="margin-top:10px;color:#999">请提前15分钟到院取号，过时作废</div></div>`;
+}
+
+function us(){document.querySelectorAll('#stepBar .step').forEach((s,i)=>{s.classList.remove('active','done');if(i<step-1)s.classList.add('done');if(i===step-1)s.classList.add('active')})}
+function ub(){document.getElementById('btnPrev').disabled=step===1;if(step===4){document.getElementById('btnNext').style.display='none';document.getElementById('btnSubmit').style.display='inline-block'}else{document.getElementById('btnNext').style.display='inline-block';document.getElementById('btnSubmit').style.display='none'}}
+function next(){if(step<4){step++;ls()}}function prev(){if(step>1){step--;ls()}}
+function ls(){us();ub();if(step===1)rd();else if(step===2)r2();else if(step===3)r3();else if(step===4)r4()}
+function submit(){
+  const n=document.getElementById('pN').value.trim(),p=document.getElementById('pP').value.trim();
+  if(!n){alert('请输入就诊人姓名');return}if(!p||!/^\d{11}$/.test(p)){alert('请输入正确的11位手机号');return}
+  const no='GH'+Date.now().toString(36).toUpperCase();r5(no);
+  document.getElementById('btnPrev').style.display='none';document.getElementById('btnSubmit').style.display='none';
+}
+ls();
+</script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧医院 · 门诊取药</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f0f4f8; color: #333; display: flex; justify-content: center;
+    padding: 30px 16px; min-height: 100vh;
+  }
+  .app { width: 100%; max-width: 680px; }
+  .top-bar {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: #fff; padding: 24px; border-radius: 14px 14px 0 0;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .top-bar .icon { font-size: 36px; }
+  .top-bar h1 { font-size: 20px; }
+  .top-bar p { font-size: 12px; opacity: .85; }
+  .home-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: #fff; text-decoration: none; font-size: 12px;
+    background: rgba(255,255,255,.2); padding: 4px 10px; border-radius: 12px;
+  }
+  .home-link:hover { background: rgba(255,255,255,.35); }
+  .status-banner {
+    background: #fff; padding: 16px 24px; border-bottom: 1px solid #e8e8e8;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .queue-number {
+    background: #27ae60; color: #fff; width: 64px; height: 64px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 700; flex-shrink: 0;
+  }
+  .queue-number small { font-size: 9px; opacity: .8; }
+  .queue-info { flex: 1; }
+  .queue-info h3 { font-size: 15px; }
+  .queue-info p { font-size: 12px; color: #999; margin-top: 2px; }
+  .current-call {
+    background: #fef3e4; border: 1px solid #f39c12; border-radius: 8px;
+    padding: 8px 14px; text-align: center;
+  }
+  .current-call .num { font-size: 28px; font-weight: 700; color: #e67e22; }
+  .current-call .label { font-size: 10px; color: #999; }
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid #e8e8e8; }
+  .tab {
+    flex: 1; text-align: center; padding: 14px 8px; font-size: 14px;
+    cursor: pointer; color: #999; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: .15s; font-weight: 500;
+  }
+  .tab.active { color: #27ae60; border-bottom-color: #27ae60; }
+  .tab .badge { border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; color: #fff; }
+  .content-area { background: #fff; padding: 24px; min-height: 340px; }
+  .rx-card {
+    border: 1px solid #e8e8e8; border-radius: 12px; padding: 18px; margin-bottom: 12px;
+    cursor: pointer; transition: .15s;
+  }
+  .rx-card:hover { border-color: #27ae60; box-shadow: 0 2px 8px rgba(39,174,96,.1); }
+  .rx-card .rx-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .rx-card .rx-title { font-size: 16px; font-weight: 700; }
+  .rx-card .rx-dept { font-size: 12px; color: #999; }
+  .rx-card .drug-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px dashed #f0f0f0; font-size: 13px;
+  }
+  .drug-item:last-child { border-bottom: none; }
+  .drug-item .drug-spec { color: #999; font-size: 11px; margin-left: 8px; white-space: nowrap; }
+  .drug-item .drug-qty { color: #27ae60; font-weight: 600; margin-left: 8px; white-space: nowrap; }
+  .rx-card .rx-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;
+  }
+  .rx-status {
+    padding: 2px 10px; border-radius: 10px; font-weight: 600; font-size: 11px;
+  }
+  .s-unpaid { background: #fef3e4; color: #e67e22; }
+  .s-ready { background: #e3f2fd; color: #1a73e8; }
+  .s-done { background: #f0f0f0; color: #999; }
+  .detail-section { margin-bottom: 20px; }
+  .detail-section h3 { font-size: 14px; color: #999; margin-bottom: 8px; }
+  .detail-card {
+    background: #f8fafc; border-radius: 10px; padding: 16px;
+  }
+  .detail-card .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .detail-card .row .label { color: #999; }
+  .pickup-info {
+    background: linear-gradient(135deg, #e8f8e8, #f0faf4);
+    border-radius: 12px; padding: 20px; text-align: center; margin-top: 16px;
+  }
+  .pickup-info .pickup-code { font-size: 32px; font-weight: 700; color: #27ae60; letter-spacing: 4px; }
+  .pickup-info .pickup-hint { font-size: 12px; color: #999; margin-top: 8px; }
+  .search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-bar input {
+    flex: 1; padding: 10px 14px; border: 1px solid #e8e8e8;
+    border-radius: 8px; font-size: 14px; outline: none;
+  }
+  .search-bar input:focus { border-color: #27ae60; }
+  .bottom-bar {
+    background: #fff; padding: 16px 24px; border-radius: 0 0 14px 14px;
+    border-top: 1px solid #e8e8e8; display: flex; gap: 12px; justify-content: center;
+  }
+  .btn { padding: 12px 28px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: .15s; }
+  .btn-primary { background: #27ae60; color: #fff; }
+  .btn-primary:hover { background: #219a52; }
+  .btn-outline { background: #fff; color: #27ae60; border: 2px solid #27ae60; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top-bar">
+    <span class="icon">💊</span>
+    <div style="flex:1">
+      <h1>智慧医院 · 门诊取药</h1>
+      <p>处方查询 · 待缴费 · 可取药 · 已取药</p>
+    </div>
+    <a class="home-link" href="home.html">🏠 主页</a>
+  </div>
+  <div class="status-banner">
+    <div class="queue-number"><small>排队</small><span id="myQueue">--</span></div>
+    <div class="queue-info">
+      <h3 id="queueTitle">暂无取药排队</h3>
+      <p id="queueSub">选择处方后可查看排队状态</p>
+    </div>
+    <div class="current-call">
+      <div class="label">当前叫号</div>
+      <div class="num">A042</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('all')">全部<span class="badge" style="background:#27ae60" id="phAll">3</span></div>
+    <div class="tab" onclick="switchTab('unpaid')">待缴费<span class="badge" style="background:#e67e22" id="phUnpaid">1</span></div>
+    <div class="tab" onclick="switchTab('ready')">可取药<span class="badge" style="background:#1a73e8" id="phReady">1</span></div>
+    <div class="tab" onclick="switchTab('done')">已取药<span class="badge" style="background:#999" id="phDone">1</span></div>
+  </div>
+  <div class="content-area" id="contentArea"></div>
+  <div class="bottom-bar" id="bottomBar">
+    <button class="btn btn-outline" id="btnBack" onclick="showList()" style="display:none">← 返回列表</button>
+    <button class="btn btn-primary" id="btnPay" onclick="payRx()" style="display:none">💳 立即缴费</button>
+    <button class="btn btn-primary" id="btnPickup" onclick="confirmPickup()" style="display:none">✅ 确认取药</button>
+  </div>
+</div>
+
+<script>
+const prescriptions = [
+  { id:'RX20260729001', title:'阿莫西林胶囊 + 布洛芬缓释片', dept:'骨科', doctor:'吴大伟 主任医师', date:'2026-07-29 09:15', status:'unpaid', total:86.30,
+    drugs:[{name:'阿莫西林胶囊',spec:'0.5g×24粒',qty:'1盒',usage:'每日3次 每次1粒 饭后服用'},
+           {name:'布洛芬缓释片',spec:'0.3g×12片',qty:'1盒',usage:'疼痛时1片 每日≤3次'}] },
+  { id:'RX20260728005', title:'复方甘草片', dept:'骨科', doctor:'郑红梅 副主任医师', date:'2026-07-28 14:30', status:'ready', total:0,
+    drugs:[{name:'复方甘草片',spec:'100片/瓶',qty:'1瓶',usage:'每日3次 每次3片'}] },
+  { id:'RX20260727012', title:'碳酸钙D3片 + 维生素B12', dept:'内科', doctor:'张伟民 主任医师', date:'2026-07-27 10:00', status:'done', total:52.00,
+    drugs:[{name:'碳酸钙D3片',spec:'600mg×30片',qty:'1瓶',usage:'每日1次 每次1片'},
+           {name:'维生素B12片',spec:'25μg×100片',qty:'1瓶',usage:'每日1次 每次1片'}] }
+];
+
+let currentTab='all', selectedRx=null, viewMode='list';
+
+function switchTab(tab){ currentTab=tab; document.querySelectorAll('.tab').forEach((t,i,a)=>{t.classList.toggle('active',a[i]===event.target);}); renderList(); }
+function getFiltered(){ return currentTab==='all' ? prescriptions : prescriptions.filter(r=>r.status===currentTab); }
+
+function renderList(){
+  viewMode='list'; selectedRx=null;
+  const list=getFiltered();
+  let html='<div class="search-bar"><input type="text" placeholder="🔍 搜索处方（药品名/科室/医生）..." oninput="searchRx(this.value)"></div>';
+  if(!list.length){ html+='<div style="text-align:center;padding:40px;color:#999">暂无相关处方</div>'; }
+  list.forEach(rx=>{
+    const sm={unpaid:['待缴费','s-unpaid'],ready:['可取药','s-ready'],done:['已取药','s-done']};
+    const[s,sc]=sm[rx.status];
+    html+=`<div class="rx-card" onclick="showDetail('${rx.id}')">
+      <div class="rx-header"><div><div class="rx-title">${rx.title}</div><div class="rx-dept">${rx.dept} · ${rx.doctor}</div></div><span class="rx-status ${sc}">${s}</span></div>
+      <div style="margin-top:10px">${rx.drugs.map(d=>`<div class="drug-item"><span>${d.name}</span><span class="drug-spec">${d.spec}</span><span class="drug-qty">${d.qty}</span></div>`).join('')}</div>
+      <div class="rx-footer"><span>${rx.date}</span>${rx.total>0?`<span style="color:#e67e22;font-weight:600">¥${rx.total.toFixed(2)}</span>`:'<span style="color:#27ae60">医保结算</span>'}</div>
+    </div>`;
+  });
+  document.getElementById('contentArea').innerHTML=html; updateBottomBar();
+}
+
+function searchRx(kw){
+  const list=getFiltered().filter(rx=>rx.title.includes(kw)||rx.dept.includes(kw)||rx.doctor.includes(kw));
+  if(!list.length) return;
+  let html='<div class="search-bar"><input type="text" placeholder="🔍 搜索..." value="'+kw+'" oninput="searchRx(this.value)"></div>';
+  list.forEach(rx=>{
+    const sm={unpaid:['待缴费','s-unpaid'],ready:['可取药','s-ready'],done:['已取药','s-done']};
+    const[s,sc]=sm[rx.status];
+    html+=`<div class="rx-card" onclick="showDetail('${rx.id}')">
+      <div class="rx-header"><div><div class="rx-title">${rx.title}</div><div class="rx-dept">${rx.dept} · ${rx.doctor}</div></div><span class="rx-status ${sc}">${s}</span></div>
+      <div style="margin-top:10px">${rx.drugs.map(d=>`<div class="drug-item"><span>${d.name}</span><span class="drug-spec">${d.spec}</span><span class="drug-qty">${d.qty}</span></div>`).join('')}</div>
+      <div class="rx-footer"><span>${rx.date}</span>${rx.total>0?`<span style="color:#e67e22;font-weight:600">¥${rx.total.toFixed(2)}</span>`:'<span style="color:#27ae60">医保结算</span>'}</div>
+    </div>`;
+  });
+  document.getElementById('contentArea').innerHTML=html; updateBottomBar();
+}
+
+function showDetail(id){
+  viewMode='detail'; selectedRx=prescriptions.find(r=>r.id===id); if(!selectedRx) return;
+  const rx=selectedRx;
+  const sm={unpaid:['待缴费','#e67e22'],ready:['可取药','#1a73e8'],done:['已取药','#999']};
+  const[s,sc]=sm[rx.status];
+  let html=`<div class="detail-section"><h3>处方信息</h3><div class="detail-card">
+    <div class="row"><span class="label">处方编号</span><span>${rx.id}</span></div>
+    <div class="row"><span class="label">就诊科室</span><span>${rx.dept}</span></div>
+    <div class="row"><span class="label">开具医生</span><span>${rx.doctor}</span></div>
+    <div class="row"><span class="label">开具时间</span><span>${rx.date}</span></div>
+    <div class="row"><span class="label">状态</span><span style="color:${sc};font-weight:600">${s}</span></div>
+    ${rx.total>0?`<div class="row"><span class="label">费用合计</span><span style="color:#e67e22;font-weight:600">¥${rx.total.toFixed(2)}</span></div>`:''}
+  </div></div>
+  <div class="detail-section"><h3>药品清单</h3>
+    ${rx.drugs.map(d=>`<div class="detail-card" style="margin-bottom:8px">
+      <div class="row"><span class="label">药品名称</span><span style="font-weight:600">${d.name}</span></div>
+      <div class="row"><span class="label">规格</span><span>${d.spec}</span></div>
+      <div class="row"><span class="label">数量</span><span>${d.qty}</span></div>
+      <div class="row"><span class="label">用法用量</span><span>${d.usage}</span></div>
+    </div>`).join('')}
+  </div>`;
+  if(rx.status==='ready'){
+    html+=`<div class="pickup-info">
+      <div style="font-size:13px;color:#999;margin-bottom:8px">取药码</div>
+      <div class="pickup-code">${rx.id.slice(-6)}</div>
+      <div class="pickup-hint">请到 门诊药房 1号窗口 凭此码取药</div></div>`;
+  }
+  document.getElementById('contentArea').innerHTML=html; updateBottomBar();
+}
+
+function showList(){ renderList(); }
+
+function updateBottomBar(){
+  document.getElementById('btnBack').style.display=viewMode==='list'?'none':'inline-block';
+  document.getElementById('btnPay').style.display=(viewMode==='detail'&&selectedRx&&selectedRx.status==='unpaid')?'inline-block':'none';
+  document.getElementById('btnPickup').style.display=(viewMode==='detail'&&selectedRx&&selectedRx.status==='ready')?'inline-block':'none';
+}
+
+function payRx(){
+  if(!selectedRx) return;
+  selectedRx.status='ready';
+  updateBadges();
+  alert('✅ 缴费成功！¥'+selectedRx.total.toFixed(2)+' 已支付，请到药房取药。');
+  document.getElementById('myQueue').textContent='A'+(Math.floor(Math.random()*30)+50);
+  document.getElementById('queueTitle').textContent='排队取药中';
+  document.getElementById('queueSub').textContent='请在候药区等待叫号';
+  showDetail(selectedRx.id);
+}
+
+function confirmPickup(){
+  if(!selectedRx) return;
+  selectedRx.status='done';
+  updateBadges();
+  alert('✅ 取药成功！请按医嘱用药。');
+  document.getElementById('myQueue').textContent='--';
+  document.getElementById('queueTitle').textContent='暂无取药排队';
+  document.getElementById('queueSub').textContent='选择处方后可查看排队状态';
+  showDetail(selectedRx.id);
+}
+
+function updateBadges(){
+  const u=prescriptions.filter(r=>r.status==='unpaid');
+  const r=prescriptions.filter(rx=>rx.status==='ready');
+  const d=prescriptions.filter(rx=>rx.status==='done');
+  document.getElementById('phAll').textContent=prescriptions.length;
+  document.getElementById('phUnpaid').textContent=u.length;
+  document.getElementById('phReady').textContent=r.length;
+  document.getElementById('phDone').textContent=d.length;
+}
+
+renderList();
+</script>
+</body>
+</html>

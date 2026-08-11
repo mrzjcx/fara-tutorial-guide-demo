@@ -1,0 +1,20 @@
+# Fara Tutorial Guide RAG — conda 一键建环境
+#
+# 用法:
+#   conda env create -f environment.yml     # 创建环境（名称 fara15）
+#   conda activate fara15                   # 激活
+#
+# 说明:
+#   - python 版本固定 3.12（与项目开发一致）
+#   - vllm/torch/transformers 等包通过 pip 段安装（conda 源版本不全，
+#     且 vllm 0.19.1 cu12 组合需精确锁定，见 requirements.txt 版本说明）
+#   - 若驱动仅支持 CUDA 12.x，务必保持 requirements.txt 中 cu12 锁定组合
+name: fara15
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -r requirements.txt

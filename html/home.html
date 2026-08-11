@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧医院 · 首页</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #e8f0fe 0%, #f0f4f8 100%);
+    color: #333; display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; padding: 20px;
+  }
+  .app { width: 100%; max-width: 560px; }
+  .header { text-align: center; padding: 40px 20px 24px; }
+  .header .logo { font-size: 64px; }
+  .header h1 { font-size: 26px; color: #1a73e8; margin: 12px 0 4px; }
+  .header p { font-size: 14px; color: #999; }
+  .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 16px 40px; }
+  .menu-card {
+    background: #fff; border-radius: 14px; padding: 24px 12px; text-align: center;
+    cursor: pointer; transition: .2s; box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    text-decoration: none;
+  }
+  .menu-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.1); }
+  .menu-card .icon { font-size: 36px; display: block; margin-bottom: 8px; }
+  .menu-card .title { font-size: 14px; font-weight: 700; color: #333; }
+  .menu-card .desc { font-size: 10px; color: #999; margin-top: 2px; line-height: 1.4; }
+  .menu-card.register { border-bottom: 4px solid #1a73e8; }
+  .menu-card.payment { border-bottom: 4px solid #e67e22; }
+  .menu-card.pharmacy { border-bottom: 4px solid #27ae60; }
+  .footer { text-align: center; padding: 20px; color: #bbb; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">🏥</div>
+    <h1>智慧医院</h1>
+    <p>在线医疗服务大厅</p>
+  </div>
+  <div class="menu-grid">
+    <a class="menu-card register" href="register_app.html">
+      <span class="icon">📋</span>
+      <div class="title">在线挂号</div>
+      <div class="desc">选择科室 · 选择医生<br>选择时间 · 确认挂号</div>
+    </a>
+    <a class="menu-card payment" href="payment_app.html">
+      <span class="icon">💰</span>
+      <div class="title">在线缴费</div>
+      <div class="desc">选择账单 · 支付方式<br>确认支付</div>
+    </a>
+    <a class="menu-card pharmacy" href="pharmacy_app.html">
+      <span class="icon">💊</span>
+      <div class="title">门诊拿药</div>
+      <div class="desc">选择处方 · 药房<br>确认取药</div>
+    </a>
+  </div>
+  <div class="footer">智慧医院 · 在线服务大厅 v1.0</div>
+</div>
+</body>
+</html>
