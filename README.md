@@ -1,14 +1,17 @@
-# Fara Tutorial Guide RAG (demo1.0)
+# Fara Tutorial Guide RAG (demo1.0.2)
 
-基于 **Fara1.5-4B** 视觉模型的网页操作指南系统：用户输入意图 + 截图 → RAG 检索说明书 → Fara 输出点击坐标 → Checker 验证闭环（最多 3 轮反馈迭代）。
-目前任务：fara一类的CUA模型仅输出坐标而不替用户做决定。
+基于 **Fara1.5-4B** 视觉模型的网页（或某些终端）操作指南系统：
+用户输入意图 + 实时截图 → 通过 RAG 检索说明书 → Fara 输出点击坐标 → Checker 验证闭环。
+目前任务：模型仅输出点击位置提示作为辅助而不替用户做决定。
 
-说明：目前问题在于：1. 模型太弱/没有适配特定的程序，针对各种复杂网页UI可能会导致误判，checker检查器本身识图能力也不够； 2. 模型参数量、推理准确性和推理速度之间的矛盾； 
+说明：目前问题在于：
+1. 模型如果太弱/没有适配特定的程序，针对各种复杂网页UI可能会出现误判，如果checker检查器本身识图能力不够，也会导致误判； 
+2. 模型参数量、推理准确性和推理速度之间存在矛盾，需要取舍； 
 
 
 > 适用环境：NVIDIA GPU（单卡/多卡自动适配）、Python 3.12。
 
-## 架构与端口
+## 默认架构与端口
 ## 模型可以替换
 | 模块 | 模型 | 承载 | 端口 |
 |------|------|------|------|
@@ -25,16 +28,17 @@
 > 定位：**辅助用户适应新系统**。Fara 只给出建议坐标与中文引导语，**不替用户做决定 / 不自动点击**。
 
 1. **用户操作页面**（左侧 iframe）→ 输入意图 → 点「执行」
-2. 前端用 **html-to-image 截图**（浏览器原生渲染，非重绘）发送给后端
+2. 前端用 **html-to-image 截图** （或者替换为CDP截图，按需使用）发送给后端
 3. **Fara** 结合截图 + RAG 说明书切片 → 输出**引导语**（面向用户的中文操作指引）+ **点击坐标**（1000×1000 归一化）
 4. 网页端**红圈标注**坐标位置，用户对照引导语自行核对
 5. **Checker** 检查坐标附近**放大图中心**的内容是否符合教程 → 给出参考意见
 6. **人机确认点**：涉及提交/确认等不可逆操作时提示用户确认
 7. 模型无法确定坐标时，**降级为文字指导**（只给引导语，不给坐标）
+8. 涉及到用户信息的填写部分——可能无法起效
 
-## Checker 角色更改
+## Checker 角色变更
 
-早期 Checker 判错即触发 Fara 重试，多次失败则降级——但小模型（Qwen3.5-0.8B）视觉/指令能力有限，**幻觉误判会否决正确坐标**。现调整为**建议者**仅输出建议：
+早期 Checker 判错即触发 Fara 重试，多次失败则降级——但小模型（如Qwen3.5-0.8B）视觉/指令能力有限，**幻觉误判会否决正确坐标**。现调整为**建议者**仅输出建议，同时也为后续更新提供一个debug的视角：
 
 ## 目录结构
 
@@ -42,7 +46,7 @@
 ├── start_all.py / stop_all.py   # 一键启动 / 停止入口
 ├── loop.py                      # 编排核心（RAG→Fara→Checker 闭环）
 ├── scripts/                     # 全部脚本
-│   ├── config.py                # ★ 全局集中配置（唯一配置源）
+│   ├── config.py                # 全局集中配置
 │   ├── launcher.py / stopper.py # 启动/停止逻辑
 │   ├── model_server.py          # vLLM 模型服务管理
 │   ├── demo.py / web_demo.py / static_server.py
@@ -54,7 +58,8 @@
 
 ## 配置
 
-所有配置集中在 **`scripts/config.py`**（环境变量可覆盖）。常用项：
+所有默认配置集中在 **`scripts/config.py`**（环境变量可覆盖）。
+常用项：
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
@@ -68,12 +73,12 @@
 
 环境变量示例：`FARA_MODEL_PATH=... CHECKER_MODEL_PATH=... python start_all.py`
 
-## 环境准备（Miniforge 一键部署）
+## 环境准备（Miniforge 部署）
 
-> 依赖已打包在 `environment.yml` + `requirements.txt` 中，git clone 后按以下步骤即可完成全部配置。
+> 依赖已打包在 `environment.yml` + `requirements.txt` 中
 
 ```bash
-# 0) 安装 Miniforge（仅需一次；已装 conda/miniforge 可跳过）
+# 0) 安装 Miniforge（已装 conda/miniforge 可跳过）
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
 bash Miniforge3-Linux-x86_64.sh -b
 ~/miniforge3/bin/conda init bash && source ~/.bashrc
@@ -86,7 +91,7 @@ cd fara-tutorial-guide-demo
 conda env create -f environment.yml
 conda activate fara15
 
-# 3) 下载模型（魔搭；bge 嵌入模型代码会自动下载）
+# 3) 下载模型（魔搭，或者huggingface；bge 嵌入模型代码会自动下载；按需下载合适的版本）
 modelscope download --model microsoft/Fara1.5-4B --local_dir ~/workspace/models/microsoft--Fara1.5-4B
 modelscope download --model Qwen/Qwen3.5-0.8B --local_dir ~/workspace/models/Qwen--Qwen3.5-0.8B
 
@@ -118,14 +123,14 @@ python scripts/demo.py --screenshot docs/img/02_register_dept.png --intent "在�
 #   打开 http://<IP>:8080  （前端页面）
 ```
 
-## 版本要求（重要）
+## 版本要求
 
 - Fara1.5-4B 官方要求：`torch>=2.11` / `transformers>=5.2` / `vllm>=0.19.1`
 - vllm 0.20+/torch 2.11+ 为 CUDA 13 构建，需驱动 >=580；驱动仅支持 CUDA 12.x 时锁定 `vllm==0.19.1 torch==2.10.0 transformers==5.14.1`（见 `requirements.txt` 注释）
 
-## 模型链接与量化版本（参考）
+## 模型链接与量化版本
 
-> 以下为相关模型的 ModelScope 链接，以及 Fara1.5-4B 各量化版本（注释/参考用，替换模型时留意格式与兼容性）。
+> 以下为相关模型的 ModelScope 链接，以及 Fara1.5-4B 各量化版本（替换模型时留意格式与兼容性）。
 
 ### 当前使用的模型
 
