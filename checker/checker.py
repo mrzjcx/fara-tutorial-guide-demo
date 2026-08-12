@@ -3,10 +3,12 @@ Checker：看图 + RAG 切片 + Fara 坐标 → 验证正确性 → 返回反馈
 """
 import re
 import io
+import os
 import json
 import base64
 import requests
 import logging
+from datetime import datetime
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
@@ -211,6 +213,22 @@ class Checker:
             zoom_b64 = crop_zoom_base64(screenshot_b64, x, y)
         except Exception as e:
             logger.debug(f"局部放大失败: {e}")
+
+        # 调试保存：CHECKER_DEBUG_SAVE（config 默认开启）时保存 Checker 实际看到的图与信息
+        if getattr(self._cfg, "debug_save", False):
+            try:
+                from pathlib import Path
+                dbg_dir = Path("output/checker_debug")
+                dbg_dir.mkdir(parents=True, exist_ok=True)
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                (dbg_dir / f"{ts}_{x}_{y}_full.png").write_bytes(base64.b64decode(screenshot_b64))
+                if zoom_b64:
+                    (dbg_dir / f"{ts}_{x}_{y}_zoom.png").write_bytes(base64.b64decode(zoom_b64))
+                (dbg_dir / f"{ts}_{x}_{y}_info.txt").write_text(
+                    f"坐标: [{x}, {y}]\n引导语: {fara_reasoning}\n", encoding="utf-8")
+                logger.info(f"Checker 调试图已保存: output/checker_debug/")
+            except Exception as e:
+                logger.debug(f"调试保存失败: {e}")
 
         # 构建消息
         user_content = self._build_messages(

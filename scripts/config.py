@@ -155,6 +155,7 @@ CHECKER_MAX_MODEL_LEN = _env_or("8192", "CHECKER_MAX_MODEL_LEN")  # 容纳原图
 CHECKER_ENFORCE_EAGER = _env_bool("CHECKER_ENFORCE_EAGER", True)   # 禁用 CUDA Graph
 CHECKER_USE_BF16 = _env_bool("CHECKER_USE_BF16", False)           # --dtype bfloat16
 CHECKER_MM_IMAGES = _env_or("2", "CHECKER_MM_IMAGES")             # 每请求最多图片数（原图+放大=2）
+CHECKER_DEBUG_SAVE = _env_bool("CHECKER_DEBUG_SAVE", True)          # 调试：保存 Checker 收到的原图/放大图到 output/checker_debug/
 
 # ---- 通用 ----
 VLLM_BIN = _env_or("", "VLLM_BIN")                       # vllm 可执行文件，空则自动查找

@@ -38,3 +38,6 @@ class CheckerConfig:
 
     # 反馈迭代参数
     max_retries: int = 3   # 最大重试次数（Fara→Checker→Fara 循环）
+
+    # 调试：保存 Checker 实际收到的原图/放大图（默认开启，CHECKER_DEBUG_SAVE=0 关闭）
+    debug_save: bool = pc.CHECKER_DEBUG_SAVE
