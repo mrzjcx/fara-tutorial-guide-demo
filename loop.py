@@ -4,8 +4,8 @@ Fara ↔ RAG ↔ Checker 联合编排 —— 新架构核心。
 流程:
     用户意图 → Fara 纯文本推演所需章节 → RAG 检索相关说明书切片
         → Fara 看图+切片 输出坐标 → Checker 验证
-             ├─ [OK] 正确 → 返回最终坐标
-            └─ [失败] 错误 → Checker 反馈 → Fara 重试（最多 max_retries 次）
+             ├─ [OK] 正确 → 返回最终坐标和建议
+            └─ [失败] 错误 → Checker 反馈 → Fara 重试（最多 max_retries 次，现在不再重试而是输出建议）
 
 """
 import logging
