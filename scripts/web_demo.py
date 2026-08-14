@@ -16,6 +16,7 @@ import logging
 import os
 import sys
 import time
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -121,7 +122,7 @@ body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; 
   </div>
   <div class="row">
     <label>Fara 地址:</label>
-    <input id="faraApi" value="{{ fara_api_default }}" placeholder="http://host:port/v1/chat/completions">
+    <input id="faraApi" value="{{ fara_api_default }}" placeholder="http://host:port/v1/chat/completions" onchange="refreshModels('fara')">
   </div>
   <div class="row">
     <label>Checker 模型:</label>
@@ -131,7 +132,7 @@ body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; 
   </div>
   <div class="row">
     <label>Checker 地址:</label>
-    <input id="checkerApi" value="{{ checker_api_default }}" placeholder="http://host:port/v1/chat/completions">
+    <input id="checkerApi" value="{{ checker_api_default }}" placeholder="http://host:port/v1/chat/completions" onchange="refreshModels('checker')">
   </div>
 
   <div style="display:flex; gap:8px;">
@@ -154,6 +155,34 @@ body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; 
 const $ = id => document.getElementById(id);
 const output = $('output'), spinner = $('spinner'), btnRun = $('btnRun'), debugLog = $('debug-log');
 let lastCoord = null, lastCanvasW = 720, lastCanvasH = 900;
+
+// 地址变化时动态拉取该地址的 /v1/models，刷新模型下拉框
+async function refreshModels(kind) {
+  const apiId = kind === 'fara' ? 'faraApi' : 'checkerApi';
+  const modelId = kind === 'fara' ? 'faraModel' : 'checkerModel';
+  const api = $(apiId).value.trim();
+  const sel = $(modelId);
+  const old = sel.value;
+  if (!api) return;
+  sel.innerHTML = '<option value="">加载中...</option>';
+  try {
+    const resp = await fetch('/api/models?url=' + encodeURIComponent(api));
+    const data = await resp.json();
+    if (data.models && data.models.length) {
+      sel.innerHTML = data.models.map(function(m) {
+        return '<option value="' + esc(m) + '">' + esc(m) + '</option>';
+      }).join('');
+      if (data.models.indexOf(old) >= 0) sel.value = old;
+    } else {
+      sel.innerHTML = '<option value="' + esc(old) + '">' + esc(old) + '</option>';
+    }
+  } catch (e) {
+    sel.innerHTML = '<option value="' + esc(old) + '">' + esc(old) + '</option>';
+  }
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 function toggleDebug() {
   debugLog.classList.toggle('show');
@@ -509,6 +538,28 @@ def api_analyze():
     # 保存结果
     save_analysis(screenshot_b64, result, history, intent)
     return jsonify(response)
+
+
+@app.route("/api/models")
+def api_models():
+    """转发外部服务的 /v1/models，返回模型 id 列表（供前端下拉框动态刷新）。
+    入参 url 可为完整 chat/completions 端点，自动转换为 /v1/models。"""
+    api_url = request.args.get("url", "").strip()
+    if not api_url:
+        return jsonify({"error": "缺少 url 参数"}), 400
+    if api_url.endswith("/chat/completions"):
+        models_url = api_url[: -len("/chat/completions")] + "/models"
+    elif api_url.endswith("/models"):
+        models_url = api_url
+    else:
+        models_url = api_url.rstrip("/") + "/models"
+    try:
+        with urllib.request.urlopen(models_url, timeout=8) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        ids = [m.get("id") for m in data.get("data", []) if m.get("id")]
+        return jsonify({"models": ids})
+    except Exception as e:
+        return jsonify({"error": f"无法获取模型列表: {e}"}), 502
 
 
 @app.route("/api/health")

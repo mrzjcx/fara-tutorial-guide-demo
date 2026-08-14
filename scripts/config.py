@@ -105,7 +105,8 @@ CHECKER_MODEL_NAME = _env_or(CHECKER_MODEL_PATH, "CHECKER_MODEL_NAME")
 FARA_MODEL_OPTIONS = [x.strip() for x in _env_or(
     f"{FARA_MODEL_PATH},Fara1.5-4B-FP8", "FARA_MODEL_OPTIONS").split(",") if x.strip()]
 CHECKER_MODEL_OPTIONS = [x.strip() for x in _env_or(
-    f"{CHECKER_MODEL_PATH},qwen3.5:0.8b,qwen3.5:2b,qwen3.5:4b", "CHECKER_MODEL_OPTIONS").split(",") if x.strip()]
+    f"{CHECKER_MODEL_PATH},qwen3.5:0.8b,qwen3.5:0.8b_Q4_K_M,qwen3.5:2b,qwen3.5:2b_Q4_K_M,qwen3.5:4b,qwen3.5:9b,qwen3_14b:latest,qwen3:32b,baichuan_m2:latest",
+    "CHECKER_MODEL_OPTIONS").split(",") if x.strip()]
 
 # ============================================================
 # 端口（API URL 与启动参数共用，避免重复维护）
