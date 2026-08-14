@@ -450,6 +450,9 @@ def api_analyze():
     if not screenshot_b64:
         return jsonify({"error": "缺少截图"}), 400
 
+    if rag is None:
+        return jsonify({"error": "RAG 未就绪：嵌入依赖缺失或配置错误。请查看启动日志——pip install sentence-transformers，或在 .env 配置 EMBEDDING_BACKEND=ollama + EMBEDDING_API_URL"}), 500
+
     # 前端可实时指定模型与地址（缺省用 config 默认）
     fara_model = (data.get("fara_model") or "").strip() or pc.FARA_MODEL_NAME
     fara_api = (data.get("fara_api") or "").strip() or pc.FARA_API_URL
@@ -557,11 +560,20 @@ def main():
     HTML_DIR = os.path.abspath(args.html_dir)
     SAVE_DIR = os.path.abspath(args.save_dir)
 
-    rag = RAGRetriever(RAGConfig(
-        pdf_path=args.pdf,
-        models_cache_dir=args.models_cache,
-        context_window=1, device="cpu",
-    ))
+    # RAG 初始化失败不阻断 Web 启动（打印清晰指引，界面提示；修复后重启即可）
+    try:
+        rag = RAGRetriever(RAGConfig(
+            pdf_path=args.pdf,
+            models_cache_dir=args.models_cache,
+            context_window=1, device="cpu",
+        ))
+    except Exception as e:
+        logger.error("RAG 初始化失败（索引未构建）: %s", e)
+        print(f"[警告] RAG 初始化失败: {e}", flush=True)
+        print("  → 解决: 1) pip install sentence-transformers（本地嵌入）", flush=True)
+        print("         2) 或项目根目录 .env 配置 EMBEDDING_BACKEND=ollama + EMBEDDING_API_URL（外部嵌入）", flush=True)
+        print("  Web 仍会启动，但 RAG 检索不可用（界面会提示），修复后重启即可。", flush=True)
+        rag = None
 
     actor = FaraActor(FaraConfig(
         api_url=args.fara_api,

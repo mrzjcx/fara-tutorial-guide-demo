@@ -46,7 +46,18 @@ class Embedder:
         if self._model is not None:
             return
 
-        from sentence_transformers import SentenceTransformer
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as e:
+            raise RuntimeError(
+                "本地嵌入需要 sentence-transformers，但未安装。两种解决方式：\n"
+                "  1) pip install sentence-transformers（本地 CPU bge 嵌入）\n"
+                "  2) 在项目根目录 .env 配置外部嵌入（无需额外安装）:\n"
+                "     EMBEDDING_BACKEND=ollama\n"
+                "     EMBEDDING_API_URL=http://<外部IP>:11434/v1/embeddings\n"
+                "     EMBEDDING_MODEL_ID=bge-m3:latest\n"
+                "     EMBEDDING_DIM=1024"
+            ) from e
 
         model_path = self._resolve_model_path()
         logger.info(f"加载嵌入模型: {model_path}")
@@ -122,7 +133,7 @@ class Embedder:
             resp = requests.post(
                 self._config.embedding_api_url,
                 json={"model": self._config.embedding_model_id, "input": batch},
-                timeout=120,
+                timeout=(5, 120),  # 5s 连接超时（外部不可达快速失败），120s 读超时
             )
             resp.raise_for_status()
             data = resp.json()

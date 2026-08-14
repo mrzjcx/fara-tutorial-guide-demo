@@ -98,7 +98,11 @@
 
 **方式 A：`.env` 文件（推荐，一劳永逸，已被 gitignore）**
 
-项目根目录建 `.env`，`config.py` 启动时自动读取（终端 export 优先于 .env）：
+项目根目录建 `.env`，`config.py` 启动时自动读取（终端 export 优先于 .env）。仓库自带模板，clone 后只需复制一份再改：
+
+```bash
+cp .env.example .env
+```
 
 ```bash
 FARA_HOST=10.17.83.10
