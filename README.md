@@ -66,12 +66,21 @@
 | `MODELS_CACHE` | `~/workspace/models` | 模型缓存根目录 |
 | `FARA_MODEL_PATH` / `CHECKER_MODEL_PATH` | 模型路径（含尾 `/`） | 也是 vLLM served-model-name |
 | `FARA_PORT` / `CHECKER_PORT` | 5002 / 5003 | 模型服务端口 |
+| `FARA_HOST` / `CHECKER_HOST` | localhost | 模型服务主机（局域网 IP 场景设为 192.168.x.x，API 与运行检测均基于它） |
 | `SERVE_PORT` / `WEB_DEMO_PORT` | 8080 / 8090 | Web 端口 |
 | `FARA_GPU` / `CHECKER_GPU` | **自动分配** | ≥2 卡→0/1；1 卡→都放 0 |
 | `DEFAULT_INTENT` | 默认意图 | Web 界面初始意图 |
 | `PYTHON_BIN` | 自动查找（venv/conda） | Web 子进程解释器 |
 
 环境变量示例：`FARA_MODEL_PATH=... CHECKER_MODEL_PATH=... python start_all.py`
+局域网服务示例：`FARA_HOST=192.168.1.100 CHECKER_HOST=192.168.1.101 python start_all.py`
+
+## 两个前提（使用外部/局域网模型服务时）
+
+> 若 Fara/Checker 的 vLLM 服务已由外部提供（只给 OpenAI 兼容端口，非本机启动），需满足：
+
+1. **served-model-name 匹配**：请求中的 `model` 字段 = 本地默认模型路径（如 `/root/workspace/models/microsoft--Fara1.5-4B/`）。外部服务的 `--served-model-name` 需与之完全一致，或本地用 `FARA_MODEL_PATH` / `CHECKER_MODEL_PATH` 对齐。
+2. **Checker 双图支持**：Checker 每次请求携带 2 张图（原图 + 坐标附近放大图），外部 Checker 服务需开启 `--limit-mm-per-prompt '{"image": 2}'` 且 `--max-model-len 8192`（否则大图请求会 400/500）。
 
 ## 环境准备（Miniforge 部署）
 

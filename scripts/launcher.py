@@ -102,7 +102,7 @@ def main():
         return
 
     # ---- 1) 模型服务 ----
-    if is_running(pc.FARA_PORT):
+    if is_running(pc.FARA_PORT, pc.FARA_HOST):
         print(f"ℹ Fara 已在运行 (:{pc.FARA_PORT})，跳过")
     else:
         start_service("fara", pc.FARA_MODEL_PATH, pc.FARA_PORT, pc.FARA_GPU,
@@ -110,16 +110,16 @@ def main():
                       pc.FARA_ENFORCE_EAGER, pc.FARA_USE_BF16)
 
     if not args.no_checker:
-        if is_running(pc.CHECKER_PORT):
+        if is_running(pc.CHECKER_PORT, pc.CHECKER_HOST):
             print(f"ℹ Checker 已在运行 (:{pc.CHECKER_PORT})，跳过")
         else:
             start_service("checker", pc.CHECKER_MODEL_PATH, pc.CHECKER_PORT, pc.CHECKER_GPU,
                           pc.CHECKER_GPU_MEM_UTIL, pc.CHECKER_MAX_MODEL_LEN,
                           pc.CHECKER_ENFORCE_EAGER, pc.CHECKER_USE_BF16)
 
-    ok = wait_health(pc.FARA_PORT, "Fara", args.timeout)
+    ok = wait_health(pc.FARA_PORT, "Fara", args.timeout, pc.FARA_HOST)
     if not args.no_checker:
-        ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout)
+        ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout, pc.CHECKER_HOST)
 
     # ---- 2) Web 服务（模型就绪后再启动）----
     if not args.no_web:

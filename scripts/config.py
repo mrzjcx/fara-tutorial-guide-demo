@@ -87,8 +87,11 @@ WEB_DEMO_PORT = _env_or("8090", "WEB_DEMO_PORT")  # Web 主界面
 # ============================================================
 # vLLM OpenAI 兼容端点（端口与上方一致，改端口只需改 PORT）
 # ============================================================
-FARA_API_URL = _env_or(f"http://localhost:{FARA_PORT}/v1/chat/completions", "FARA_API_URL")
-CHECKER_API_URL = _env_or(f"http://localhost:{CHECKER_PORT}/v1/chat/completions", "CHECKER_API_URL")
+# 服务主机（局域网 IP 场景可设为 192.168.x.x；API URL 与运行检测均基于它）
+FARA_HOST = _env_or("localhost", "FARA_HOST")
+CHECKER_HOST = _env_or("localhost", "CHECKER_HOST")
+FARA_API_URL = _env_or(f"http://{FARA_HOST}:{FARA_PORT}/v1/chat/completions", "FARA_API_URL")
+CHECKER_API_URL = _env_or(f"http://{CHECKER_HOST}:{CHECKER_PORT}/v1/chat/completions", "CHECKER_API_URL")
 
 
 # ---- 前端静态页 / 截图 ----

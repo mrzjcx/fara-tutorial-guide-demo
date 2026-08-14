@@ -69,10 +69,10 @@ def vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16, mm_im
     return cmd
 
 
-def is_running(port: int) -> bool:
-    """端口健康检查是否 200。"""
+def is_running(port: int, host: str = "localhost") -> bool:
+    """端口健康检查是否 200（host 可配置为局域网 IP，默认 localhost）。"""
     try:
-        with urllib.request.urlopen(f"http://localhost:{port}/health", timeout=2) as r:
+        with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=2) as r:
             return r.status == 200
     except Exception:
         return False
@@ -92,11 +92,11 @@ def start_service(name, model_path, port, gpu, mem_util, max_len, enforce_eager,
     return proc
 
 
-def wait_health(port, name, timeout=300):
+def wait_health(port, name, timeout=300, host="localhost"):
     """轮询等待服务健康检查通过。"""
     start = time.time()
     while time.time() - start < timeout:
-        if is_running(port):
+        if is_running(port, host):
             print(f"[OK] {name} 就绪 ({port})")
             return True
         time.sleep(5)
@@ -115,11 +115,11 @@ def stop_all():
 
 def status():
     """打印两个服务的运行状态。"""
-    for name, port, model in (
-        ("Fara", pc.FARA_PORT, pc.FARA_MODEL_PATH),
-        ("Checker", pc.CHECKER_PORT, pc.CHECKER_MODEL_PATH),
+    for name, port, model, host in (
+        ("Fara", pc.FARA_PORT, pc.FARA_MODEL_PATH, pc.FARA_HOST),
+        ("Checker", pc.CHECKER_PORT, pc.CHECKER_MODEL_PATH, pc.CHECKER_HOST),
     ):
-        ok = is_running(port)
+        ok = is_running(port, host)
         print(f"{name:<8} :{port:<6} {'[OK] 运行中' if ok else '[失败] 未运行'}   模型={model}")
 
 
@@ -140,7 +140,7 @@ def main():
 
     # ---- 启动 Fara ----
     started = []
-    if is_running(pc.FARA_PORT):
+    if is_running(pc.FARA_PORT, pc.FARA_HOST):
         print(f"ℹ Fara 已在运行 ({pc.FARA_PORT})，跳过启动")
     else:
         started.append(start_service(
@@ -151,7 +151,7 @@ def main():
     # ---- 启动 Checker ----
     if args.no_checker:
         print("ℹ --no-checker，跳过 Checker")
-    elif is_running(pc.CHECKER_PORT):
+    elif is_running(pc.CHECKER_PORT, pc.CHECKER_HOST):
         print(f"ℹ Checker 已在运行 ({pc.CHECKER_PORT})，跳过启动")
     else:
         started.append(start_service(
@@ -165,9 +165,9 @@ def main():
         return
 
     # ---- 等待就绪 ----
-    ok = wait_health(pc.FARA_PORT, "Fara", args.timeout)
+    ok = wait_health(pc.FARA_PORT, "Fara", args.timeout, pc.FARA_HOST)
     if not args.no_checker:
-        ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout)
+        ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout, pc.CHECKER_HOST)
 
     print()
     if ok:
