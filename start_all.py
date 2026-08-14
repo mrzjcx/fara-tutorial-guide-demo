@@ -6,6 +6,7 @@ Fara RAG Demo 一键启动 —— 唯一入口。
 
 用法:
     python start_all.py                 # 一键启动全部（模型 + Web）
+    python start_all.py --no-models     # 无 GPU/外部模型服务：跳过本地模型，只起 Web
     python start_all.py --no-checker    # 只启动 Fara 模型
     python start_all.py --no-web        # 只启动模型，不起 Web
     python start_all.py --stop          # 停止全部（模型 + Web）

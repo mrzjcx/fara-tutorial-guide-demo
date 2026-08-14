@@ -87,6 +87,8 @@ def status():
 def main():
     parser = argparse.ArgumentParser(description="Fara RAG Demo 一键启动（模型 + Web）")
     parser.add_argument("--no-checker", action="store_true", help="不启动 Checker")
+    parser.add_argument("--no-models", action="store_true",
+                        help="无 GPU/模型由外部提供：跳过本地模型启动，只起 Web")
     parser.add_argument("--no-web", action="store_true", help="只启动模型服务，不起 Web")
     parser.add_argument("--stop", action="store_true", help="停止全部（模型 + Web）")
     parser.add_argument("--status", action="store_true", help="查看全部服务状态")
@@ -101,25 +103,29 @@ def main():
         status()
         return
 
-    # ---- 1) 模型服务 ----
-    if is_running(pc.FARA_PORT, pc.FARA_HOST):
-        print(f"ℹ Fara 已在运行 (:{pc.FARA_PORT})，跳过")
-    else:
-        start_service("fara", pc.FARA_MODEL_PATH, pc.FARA_PORT, pc.FARA_GPU,
-                      pc.FARA_GPU_MEM_UTIL, pc.FARA_MAX_MODEL_LEN,
-                      pc.FARA_ENFORCE_EAGER, pc.FARA_USE_BF16)
-
-    if not args.no_checker:
-        if is_running(pc.CHECKER_PORT, pc.CHECKER_HOST):
-            print(f"ℹ Checker 已在运行 (:{pc.CHECKER_PORT})，跳过")
+    # ---- 1) 模型服务（--no-models 时跳过：无 GPU 或模型由外部 OpenAI 端口提供）----
+    if not args.no_models:
+        if is_running(pc.FARA_PORT, pc.FARA_HOST):
+            print(f"ℹ Fara 已在运行 (:{pc.FARA_PORT})，跳过")
         else:
-            start_service("checker", pc.CHECKER_MODEL_PATH, pc.CHECKER_PORT, pc.CHECKER_GPU,
-                          pc.CHECKER_GPU_MEM_UTIL, pc.CHECKER_MAX_MODEL_LEN,
-                          pc.CHECKER_ENFORCE_EAGER, pc.CHECKER_USE_BF16)
+            start_service("fara", pc.FARA_MODEL_PATH, pc.FARA_PORT, pc.FARA_GPU,
+                          pc.FARA_GPU_MEM_UTIL, pc.FARA_MAX_MODEL_LEN,
+                          pc.FARA_ENFORCE_EAGER, pc.FARA_USE_BF16)
 
-    ok = wait_health(pc.FARA_PORT, "Fara", args.timeout, pc.FARA_HOST)
-    if not args.no_checker:
-        ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout, pc.CHECKER_HOST)
+        if not args.no_checker:
+            if is_running(pc.CHECKER_PORT, pc.CHECKER_HOST):
+                print(f"ℹ Checker 已在运行 (:{pc.CHECKER_PORT})，跳过")
+            else:
+                start_service("checker", pc.CHECKER_MODEL_PATH, pc.CHECKER_PORT, pc.CHECKER_GPU,
+                              pc.CHECKER_GPU_MEM_UTIL, pc.CHECKER_MAX_MODEL_LEN,
+                              pc.CHECKER_ENFORCE_EAGER, pc.CHECKER_USE_BF16)
+
+        ok = wait_health(pc.FARA_PORT, "Fara", args.timeout, pc.FARA_HOST)
+        if not args.no_checker:
+            ok &= wait_health(pc.CHECKER_PORT, "Checker", args.timeout, pc.CHECKER_HOST)
+    else:
+        print("ℹ --no-models：跳过本地模型服务（请确认外部 OpenAI 端口可达，API 地址见 config.py）")
+        ok = True
 
     # ---- 2) Web 服务（模型就绪后再启动）----
     if not args.no_web:

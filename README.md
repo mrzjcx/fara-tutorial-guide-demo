@@ -1,4 +1,4 @@
-# Fara Tutorial Guide RAG (demo1.0.2)
+# Fara Tutorial Guide RAG (demo1.0.3)
 
 基于 **Fara1.5-4B** 视觉模型的网页（或某些终端）操作指南系统：
 用户输入意图 + 实时截图 → 通过 RAG 检索说明书 → Fara 输出点击坐标 → Checker 验证闭环。
@@ -77,10 +77,67 @@
 
 ## 两个前提（使用外部/局域网模型服务时）
 
-> 若 Fara/Checker 的 vLLM 服务已由外部提供（只给 OpenAI 兼容端口，非本机启动），需满足：
+> 若 Fara/Checker 的模型服务已由外部提供（只给 OpenAI 兼容端口，非本机启动），需满足：
 
-1. **served-model-name 匹配**：请求中的 `model` 字段 = 本地默认模型路径（如 `/root/workspace/models/microsoft--Fara1.5-4B/`）。外部服务的 `--served-model-name` 需与之完全一致，或本地用 `FARA_MODEL_PATH` / `CHECKER_MODEL_PATH` 对齐。
-2. **Checker 双图支持**：Checker 每次请求携带 2 张图（原图 + 坐标附近放大图），外部 Checker 服务需开启 `--limit-mm-per-prompt '{"image": 2}'` 且 `--max-model-len 8192`（否则大图请求会 400/500）。
+1. **模型名匹配**：请求中的 `model` 字段需与外部服务端模型名一致。用 `FARA_MODEL_NAME` / `CHECKER_MODEL_NAME` 指定（如 `Fara1.5-4B-FP8` / `qwen3.5:0.8b`），或在 Web 界面下拉框实时选择（demo1.0.3 新增）。
+2. **Checker 双图支持**：Checker 每次请求携带 2 张图（原图 + 坐标附近放大图），外部 Checker 服务需开启 `--limit-mm-per-prompt '{"image": 2}'` 且 `--max-model-len 8192`（否则大图请求会 400/500）。纯文本模型（无视觉）时 Checker 自动退化为仅建议。
+
+## 无 GPU 环境：连接外部 OpenAI 格式端口（推荐）
+
+> 本机无 GPU / 不想下载模型时，只需**代码 + 依赖**，模型全部走外部 OpenAI 兼容端口（vLLM / Ollama / 任意兼容服务）。
+
+### 需要外部提供（按需）
+
+| 用途 | 建议模型 | 外部示例 |
+|------|---------|---------|
+| Fara（坐标推理，视觉） | `Fara1.5-4B-FP8` | `http://10.17.83.10:8000/v1/chat/completions` |
+| Checker（验证，视觉，可选） | `qwen3.5:0.8b` | `http://10.17.83.10:11434/v1/chat/completions` |
+| RAG 嵌入（可选，缺省用本地 CPU bge） | `bge-m3:latest` | `http://10.17.83.10:11434/v1/embeddings` |
+
+### 配置（环境变量即可，无需改文件）
+
+```bash
+# 外部 Fara（vLLM）
+export FARA_HOST=10.17.83.10
+export FARA_PORT=8000
+export FARA_MODEL_NAME=Fara1.5-4B-FP8
+
+# 外部 Checker（Ollama）
+export CHECKER_HOST=10.17.83.10
+export CHECKER_PORT=11434
+export CHECKER_MODEL_NAME=qwen3.5:0.8b
+
+# 外部 RAG 嵌入（Ollama bge-m3，维度 1024）
+export EMBEDDING_BACKEND=ollama
+export EMBEDDING_API_URL=http://10.17.83.10:11434/v1/embeddings
+export EMBEDDING_MODEL_ID=bge-m3:latest
+export EMBEDDING_DIM=1024
+```
+
+### 启动
+
+```bash
+# 跳过本地模型服务（无 GPU 必需）；RAG 索引缺失时自动用外部嵌入构建
+python start_all.py --no-models
+```
+
+### 依赖：不需要完整 fara15 环境
+
+只启 Web 时**不需要** `environment.yml`（含 vllm/torch/transformers，约十几 GB）。装轻量版即可：
+
+```bash
+# 只需 CPU 依赖（约几百 MB）
+pip install -r requirements-web.txt
+```
+
+> 完整版 `fara15` 环境（`conda env create -f environment.yml`）仅在**本机起 vLLM 模型服务**时才需要。
+> 若 RAG 嵌入不走外部端口（`EMBEDDING_BACKEND=local`），需额外 `pip install sentence-transformers`。
+
+### 说明
+
+- 不设置 `FARA_MODEL_NAME` / `CHECKER_MODEL_NAME` 时，也可在 Web 界面（:8090）的**模型下拉框**实时选择、**地址输入框**实时修改（demo1.0.3 新增，无需重启）
+- Checker 若为纯文本模型（无视觉）或不可达，自动退化（仅建议，不否决）
+- 也可单独起 Web：`python scripts/web_demo.py`（另需 `python scripts/static_server.py` 提供前端截图源 :8080）
 
 ## 环境准备（Miniforge 部署）
 

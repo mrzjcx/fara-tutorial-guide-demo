@@ -1,0 +1,28 @@
+# ============================================================
+# Fara Tutorial Guide RAG — 仅 Web 服务依赖（无 GPU / 外部模型端口场景）
+# 生成日期: 2026-08-14
+#
+# 适用场景: 本机无 GPU，Fara / Checker / RAG 嵌入全部走外部
+#           OpenAI 兼容端口（vLLM / Ollama）。
+# 安装方式:  pip install -r requirements-web.txt
+#
+# 相比 requirements.txt（完整版），本清单【不含】:
+#   vllm / torch / transformers / modelscope / sentence-transformers
+#   （这些仅在本地起 vLLM 模型服务时需要；外部端口场景用不到）
+#
+# 注意:
+#   - RAG 嵌入走本地 bge 时（EMBEDDING_BACKEND=local，未设外部嵌入）,
+#     需额外安装: pip install sentence-transformers（会顺带装 CPU 版 torch）
+#   - 可选实时截图: playwright>=1.40（demo.py --serve-url 才需要）
+# ============================================================
+
+# ---- HTTP / Web ----
+requests>=2.31
+flask>=3.0
+
+# ---- RAG 检索（CPU 即可）----
+numpy>=1.26
+pymupdf>=1.24            # PDF 解析（代码中 import fitz）
+jieba>=0.42              # 中文分词（BM25 关键词切分）
+rank-bm25>=0.2.2         # 稀疏检索（BM25）
+faiss-cpu>=1.8           # 向量检索（FAISS，CPU 版）

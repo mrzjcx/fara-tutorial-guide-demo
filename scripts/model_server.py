@@ -70,12 +70,16 @@ def vllm_command(model_path, port, mem_util, max_len, enforce_eager, bf16, mm_im
 
 
 def is_running(port: int, host: str = "localhost") -> bool:
-    """端口健康检查是否 200（host 可配置为局域网 IP，默认 localhost）。"""
-    try:
-        with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=2) as r:
-            return r.status == 200
-    except Exception:
-        return False
+    """端口健康检查：/health 或 /v1/models 任一返回 200 即视为运行中。
+    兼容 vLLM（/health）与 Ollama（/v1/models）。host 可配置为局域网 IP。"""
+    for path in ("/health", "/v1/models"):
+        try:
+            with urllib.request.urlopen(f"http://{host}:{port}{path}", timeout=2) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            continue
+    return False
 
 
 def start_service(name, model_path, port, gpu, mem_util, max_len, enforce_eager, bf16, mm_image_limit=""):
