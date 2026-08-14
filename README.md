@@ -142,24 +142,19 @@ export EMBEDDING_DIM=1024
 不设任何环境变量直接 `python start_all.py --no-models`，在 Web 界面（:8090）的**模型下拉框**选外部模型、**地址输入框**填外部端口即可，无需重启。
 > 注意：这种方式下 RAG 嵌入默认走本地 bge（需 `pip install sentence-transformers`），要用外部嵌入仍建议写 `.env` 的 `EMBEDDING_*`。
 
-### 启动
+### 快速开始（两步，全自动）
 
 ```bash
-# 跳过本地模型服务（无 GPU 必需）；RAG 索引缺失时自动用外部嵌入构建
-python start_all.py --no-models
+# ① 一次性: 建 venv + 装轻量依赖 + 生成 .env（.env 缺失时自动从 .env.example 复制）
+bash setup.sh
+
+# ② 每次启动
+source venv/bin/activate && python start_all.py --no-models
 ```
 
-### 依赖：不需要完整 fara15 环境
-
-只启 Web 时**不需要** `environment.yml`（含 vllm/torch/transformers，约十几 GB）。装轻量版即可：
-
-```bash
-# 只需 CPU 依赖（约几百 MB）
-pip install -r requirements-web.txt
-```
-
-> 完整版 `fara15` 环境（`conda env create -f environment.yml`）仅在**本机起 vLLM 模型服务**时才需要。
-> 若 RAG 嵌入不走外部端口（`EMBEDDING_BACKEND=local`），需额外 `pip install sentence-transformers`。
+- `.env` 不存在时会**自动从 `.env.example` 生成**（也可手动 `cp .env.example .env` 后修改外部 IP；模板默认示例 IP 为 10.17.83.10）
+- 只启 Web **不需要**完整 `fara15` 环境（`environment.yml` 含 vllm/torch，约十几 GB）；`setup.sh` 只装轻量 `requirements-web.txt`（约几百 MB）
+- 若 RAG 嵌入不走外部端口（`EMBEDDING_BACKEND=local`），需额外 `pip install sentence-transformers`
 
 ### 说明
 
