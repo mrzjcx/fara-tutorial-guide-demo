@@ -156,7 +156,7 @@ const $ = id => document.getElementById(id);
 const output = $('output'), spinner = $('spinner'), btnRun = $('btnRun'), debugLog = $('debug-log');
 let lastCoord = null, lastCanvasW = 720, lastCanvasH = 900;
 
-// 地址变化时动态拉取该地址的 /v1/models，刷新模型下拉框
+// 地址变化/页面加载时拉取该地址的 /v1/models，实时刷新模型下拉框
 async function refreshModels(kind) {
   const apiId = kind === 'fara' ? 'faraApi' : 'checkerApi';
   const modelId = kind === 'fara' ? 'faraModel' : 'checkerModel';
@@ -168,21 +168,32 @@ async function refreshModels(kind) {
   try {
     const resp = await fetch('/api/models?url=' + encodeURIComponent(api));
     const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
     if (data.models && data.models.length) {
       sel.innerHTML = data.models.map(function(m) {
-        return '<option value="' + esc(m) + '">' + esc(m) + '</option>';
+        return '<option value="' + escAttr(m) + '">' + escAttr(m) + '</option>';
       }).join('');
       if (data.models.indexOf(old) >= 0) sel.value = old;
     } else {
-      sel.innerHTML = '<option value="' + esc(old) + '">' + esc(old) + '</option>';
+      sel.innerHTML = '<option value="' + escAttr(old) + '">' + escAttr(old) + '（缓存）</option>' +
+                      '<option value="">⚠️ 该地址未返回模型</option>';
+      sel.value = '';
     }
   } catch (e) {
-    sel.innerHTML = '<option value="' + esc(old) + '">' + esc(old) + '</option>';
+    sel.innerHTML = '<option value="' + escAttr(old) + '">' + escAttr(old) + '（缓存）</option>' +
+                    '<option value="">❌ 地址不可达，请检查</option>';
+    sel.value = '';
   }
 }
-function esc(s) {
+function escAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// 页面加载后自动按当前地址刷新模型列表（端口关闭时下拉框立即显示不可达提示）
+window.addEventListener('load', function() {
+  refreshModels('fara');
+  refreshModels('checker');
+});
 
 function toggleDebug() {
   debugLog.classList.toggle('show');
