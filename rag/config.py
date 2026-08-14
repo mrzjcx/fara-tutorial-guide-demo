@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.config import EMBEDDING_MODEL_ID
+from scripts.config import EMBEDDING_MODEL_ID, EMBEDDING_BACKEND, EMBEDDING_API_URL
 
 
 @dataclass
@@ -26,8 +26,11 @@ class RAGConfig:
     # ModelScope 模型缓存目录
     models_cache_dir: str = ""
 
-    # ========== 嵌入模型（ModelScope） ==========
+    # ========== 嵌入模型（ModelScope / Ollama） ==========
     embedding_model_id: str = EMBEDDING_MODEL_ID  # 默认来自 config.py（可覆盖）
+    # 嵌入后端: local=本地 sentence_transformers；ollama=远程 Ollama /v1/embeddings
+    embedding_backend: str = EMBEDDING_BACKEND
+    embedding_api_url: str = EMBEDDING_API_URL
     # 下载后的本地路径（由 download 逻辑自动填充）
     embedding_model_local: str = ""
 

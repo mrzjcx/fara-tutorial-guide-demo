@@ -18,24 +18,31 @@ logger = logging.getLogger(__name__)
 
 class Embedder:
     """
-    文本向量化器，基于 ModelScope 的 BGE 中文嵌入模型。
+    文本向量化器。
+
+    后端可选：
+      - local : 本地 sentence_transformers + ModelScope bge（默认）
+      - ollama: 远程 Ollama /v1/embeddings（如 10.17.83.10:11434，bge-m3:latest）
 
     Usage:
         emb = Embedder(config)
-        vectors = emb.encode(["文本1", "文本2"])  # shape: (2, 512)
+        vectors = emb.encode(["文本1", "文本2"])  # shape: (n, dim)
     """
 
     def __init__(self, config: RAGConfig):
         self._config = config
         self._model = None
         self._dim = EMBEDDING_DIM  # 默认来自 config.py（模型加载后以实际维度为准）
+        self._ollama = (config.embedding_backend == "ollama" and bool(config.embedding_api_url))
 
     @property
     def dim(self) -> int:
         return self._dim
 
     def _ensure_model(self):
-        """延迟加载模型（首次 encode 时才下载/加载）。"""
+        """延迟加载模型（首次 encode 时才下载/加载）；ollama 远程模式无需本地模型。"""
+        if self._ollama:
+            return
         if self._model is not None:
             return
 
@@ -86,13 +93,11 @@ class Embedder:
         """
         将文本列表编码为向量矩阵。
 
-        Args:
-            texts: 文本列表
-            show_progress: 是否显示进度条
-
         Returns:
-            np.ndarray: shape (len(texts), dim)
+            np.ndarray: shape (len(texts), dim)，L2 归一化
         """
+        if self._ollama:
+            return self._encode_ollama(texts)
         self._ensure_model()
         if not texts:
             return np.empty((0, self._dim), dtype=np.float32)
@@ -104,6 +109,31 @@ class Embedder:
             normalize_embeddings=True,   # L2 归一化，便于内积相似度
         )
         return np.array(embeddings, dtype=np.float32)
+
+    def _encode_ollama(self, texts: List[str]) -> np.ndarray:
+        """远程 Ollama /v1/embeddings 编码（OpenAI 兼容格式）。"""
+        import requests
+        if not texts:
+            return np.empty((0, self._dim), dtype=np.float32)
+        # 批量上限 32，分批调用
+        out = []
+        for i in range(0, len(texts), 32):
+            batch = texts[i:i + 32]
+            resp = requests.post(
+                self._config.embedding_api_url,
+                json={"model": self._config.embedding_model_id, "input": batch},
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            out.extend(item["embedding"] for item in data.get("data", []))
+        arr = np.array(out, dtype=np.float32)
+        # L2 归一化（与本地 bge 行为一致，便于余弦/内积检索）
+        norms = np.linalg.norm(arr, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        arr = arr / norms
+        self._dim = arr.shape[1]
+        return arr
 
     def encode_query(self, query: str) -> np.ndarray:
         """编码查询文本（P1-⑥: 前缀从 config 读取）。"""

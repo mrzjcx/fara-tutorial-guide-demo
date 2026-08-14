@@ -113,6 +113,27 @@ body { display: flex; height: 100vh; font-family: "Microsoft YaHei",sans-serif; 
     </select>
   </div>
 
+  <div class="row">
+    <label>Fara 模型:</label>
+    <select id="faraModel">
+      {% for m in fara_model_options %}<option value="{{ m }}"{% if m == fara_model_default %} selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="row">
+    <label>Fara 地址:</label>
+    <input id="faraApi" value="{{ fara_api_default }}" placeholder="http://host:port/v1/chat/completions">
+  </div>
+  <div class="row">
+    <label>Checker 模型:</label>
+    <select id="checkerModel">
+      {% for m in checker_model_options %}<option value="{{ m }}"{% if m == checker_model_default %} selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="row">
+    <label>Checker 地址:</label>
+    <input id="checkerApi" value="{{ checker_api_default }}" placeholder="http://host:port/v1/chat/completions">
+  </div>
+
   <div style="display:flex; gap:8px;">
     <button class="btn btn-go" id="btnRun" onclick="runFull()">执行 (截图+Fara+Checker)</button>
     <button class="btn btn-rag" onclick="runRagOnly()">RAG</button>
@@ -187,7 +208,13 @@ async function runFull() {
     const resp = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ intent, screenshot, step_context: stepCtx })
+      body: JSON.stringify({
+        intent, screenshot, step_context: stepCtx,
+        fara_model: $('faraModel').value.trim(),
+        fara_api: $('faraApi').value.trim(),
+        checker_model: $('checkerModel').value.trim(),
+        checker_api: $('checkerApi').value.trim()
+      })
     });
     const d = await resp.json();
     dlog('[响应] 收到', 'd-step');
@@ -364,6 +391,12 @@ def index():
         test_url="",
         default_intent=pc.DEFAULT_INTENT,
         fara_space=pc.FARA_SPACE,
+        fara_model_options=pc.FARA_MODEL_OPTIONS,
+        checker_model_options=pc.CHECKER_MODEL_OPTIONS,
+        fara_model_default=pc.FARA_MODEL_NAME,
+        checker_model_default=pc.CHECKER_MODEL_NAME,
+        fara_api_default=pc.FARA_API_URL,
+        checker_api_default=pc.CHECKER_API_URL,
     )
 
 
@@ -416,6 +449,19 @@ def api_analyze():
 
     if not screenshot_b64:
         return jsonify({"error": "缺少截图"}), 400
+
+    # 前端可实时指定模型与地址（缺省用 config 默认）
+    fara_model = (data.get("fara_model") or "").strip() or pc.FARA_MODEL_NAME
+    fara_api = (data.get("fara_api") or "").strip() or pc.FARA_API_URL
+    checker_model = (data.get("checker_model") or "").strip() or pc.CHECKER_MODEL_NAME
+    checker_api = (data.get("checker_api") or "").strip() or pc.CHECKER_API_URL
+
+    # 动态构造（支持前端实时切换模型/地址；不污染全局默认实例）
+    fara_actor = FaraActor(FaraConfig(
+        api_url=fara_api, model_path=fara_model, model_name=fara_model))
+    fara_checker = Checker(CheckerConfig(
+        api_url=checker_api, model_path=checker_model, model_name=checker_model, max_retries=3))
+    loop = FaraCheckerLoop(rag, fara_actor, fara_checker, max_retries=3)
 
     t0 = time.time()
 

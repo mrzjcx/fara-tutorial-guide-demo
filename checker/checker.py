@@ -236,7 +236,7 @@ class Checker:
         )
 
         payload = {
-            "model": self._cfg.model_path,
+            "model": self._cfg.model_name or self._cfg.model_path,
             "messages": [
                 {"role": "system", "content": self._system_prompt},
                 {"role": "user", "content": user_content},

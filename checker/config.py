@@ -23,6 +23,9 @@ class CheckerConfig:
     # 模型本地路径（统一来自 scripts/config.py，环境变量 CHECKER_MODEL_PATH 可覆盖）
     model_path: str = pc.CHECKER_MODEL_PATH
 
+    # 请求 model 字段（默认=model_path；指向外部 Ollama 时用 CHECKER_MODEL_NAME）
+    model_name: str = pc.CHECKER_MODEL_NAME
+
     # 生成参数
     max_tokens: int = 150
     temperature: float = 0.0

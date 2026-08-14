@@ -71,6 +71,17 @@ def _model_dir(model_name: str) -> str:
 FARA_MODEL_PATH = _env_or(_model_dir("microsoft--Fara1.5-4B"), "FARA_MODEL_PATH")
 CHECKER_MODEL_PATH = _env_or(_model_dir("Qwen--Qwen3.5-0.8B"), "CHECKER_MODEL_PATH")
 
+# ---- 请求 model 字段（外部服务时用服务端模型名，如 Fara1.5-4B-FP8 / qwen3.5:0.8b）----
+# 默认等于本地路径；指向外部 vLLM/Ollama 时设为对应 served-model-name / Ollama 模型名
+FARA_MODEL_NAME = _env_or(FARA_MODEL_PATH, "FARA_MODEL_NAME")
+CHECKER_MODEL_NAME = _env_or(CHECKER_MODEL_PATH, "CHECKER_MODEL_NAME")
+
+# ---- Web 界面可选模型清单（逗号分隔，供前端下拉框选择）----
+FARA_MODEL_OPTIONS = [x.strip() for x in _env_or(
+    f"{FARA_MODEL_PATH},Fara1.5-4B-FP8", "FARA_MODEL_OPTIONS").split(",") if x.strip()]
+CHECKER_MODEL_OPTIONS = [x.strip() for x in _env_or(
+    f"{CHECKER_MODEL_PATH},qwen3.5:0.8b,qwen3.5:2b,qwen3.5:4b", "CHECKER_MODEL_OPTIONS").split(",") if x.strip()]
+
 # ============================================================
 # 端口（API URL 与启动参数共用，避免重复维护）
 # ============================================================
@@ -100,8 +111,11 @@ SCREENSHOT_DIR = _env_or(str(PROJECT_ROOT / "docs" / "img"), "SCREENSHOT_DIR")
 
 # ---- RAG ----
 PDF_PATH = _env_or(str(PROJECT_ROOT / "docs" / "manual" / "manual.pdf"), "PDF_PATH")
-EMBEDDING_MODEL_ID = _env_or("BAAI/bge-small-zh-v1.5", "EMBEDDING_MODEL_ID")
-EMBEDDING_DIM = int(_env_or("512", "EMBEDDING_DIM"))  # bge-small-zh-v1.5 维度
+# 嵌入后端: local=本地 sentence_transformers+bge；ollama=远程 Ollama 嵌入 API（如 10.17.83.10:11434）
+EMBEDDING_BACKEND = _env_or("local", "EMBEDDING_BACKEND")
+EMBEDDING_API_URL = _env_or("", "EMBEDDING_API_URL")  # ollama 时: http://10.17.83.10:11434/v1/embeddings
+EMBEDDING_MODEL_ID = _env_or("BAAI/bge-small-zh-v1.5", "EMBEDDING_MODEL_ID")  # ollama 时: bge-m3:latest
+EMBEDDING_DIM = int(_env_or("512", "EMBEDDING_DIM"))  # bge-small-zh-v1.5=512；ollama bge-m3=1024
 
 # ---- Web 默认业务值 ----
 DEFAULT_INTENT = _env_or("14号挂骨科 选吴医生 早上九点到九点半的号", "DEFAULT_INTENT")

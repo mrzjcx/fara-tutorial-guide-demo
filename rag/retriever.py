@@ -51,6 +51,12 @@ class RAGRetriever:
         # 尝试加载已有索引
         self._try_load_index()
 
+        # 索引缺失且 PDF 存在 → 自动构建（新服务一键启动，无需手动离线 build）
+        if (self._index is None or len(self._index) == 0) \
+                and config.pdf_path and os.path.exists(config.pdf_path):
+            logger.info("索引不存在且 PDF 存在，自动构建索引...")
+            self.build_index()
+
     # ==================== 索引构建 ====================
 
     def build_index(self, force: bool = False):

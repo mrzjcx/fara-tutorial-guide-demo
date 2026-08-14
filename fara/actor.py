@@ -161,7 +161,7 @@ class FaraActor:
         )
 
         payload = {
-            "model": self._cfg.model_path,
+            "model": self._cfg.model_name or self._cfg.model_path,
             "messages": [
                 {"role": "system", "content": self._system_prompt},
                 {"role": "user", "content": user_content},
@@ -335,7 +335,7 @@ Examples:
         user_text = f"用户意图：{user_intent if user_intent else '未指定'}{summary_block}{progress_block}\n\n请输出需要检索的说明书步骤标题。"
 
         payload = {
-            "model": self._cfg.model_path,
+            "model": self._cfg.model_name or self._cfg.model_path,
             "messages": [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_text},
