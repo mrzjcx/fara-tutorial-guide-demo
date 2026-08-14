@@ -38,6 +38,25 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _load_dotenv(path: Path | None = None) -> None:
+    """轻量 .env 加载：读取 PROJECT_ROOT/.env 的 KEY=VALUE（忽略 # 注释与空行）。
+    不覆盖已存在的环境变量（终端 export 优先）。无需 python-dotenv 依赖。"""
+    path = path or (PROJECT_ROOT / ".env")
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()  # 需在所有 _env_or 读取前执行
+
+
 def _env_or(default: str, *keys: str) -> str:
     """按顺序检查环境变量，全部未设置时返回默认值。"""
     for k in keys:

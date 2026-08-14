@@ -94,7 +94,26 @@
 | Checker（验证，视觉，可选） | `qwen3.5:0.8b` | `http://10.17.83.10:11434/v1/chat/completions` |
 | RAG 嵌入（可选，缺省用本地 CPU bge） | `bge-m3:latest` | `http://10.17.83.10:11434/v1/embeddings` |
 
-### 配置（环境变量即可，无需改文件）
+### 配置（三种方式，任选其一）
+
+**方式 A：`.env` 文件（推荐，一劳永逸，已被 gitignore）**
+
+项目根目录建 `.env`，`config.py` 启动时自动读取（终端 export 优先于 .env）：
+
+```bash
+FARA_HOST=10.17.83.10
+FARA_PORT=8000
+FARA_MODEL_NAME=Fara1.5-4B-FP8
+CHECKER_HOST=10.17.83.10
+CHECKER_PORT=11434
+CHECKER_MODEL_NAME=qwen3.5:0.8b
+EMBEDDING_BACKEND=ollama
+EMBEDDING_API_URL=http://10.17.83.10:11434/v1/embeddings
+EMBEDDING_MODEL_ID=bge-m3:latest
+EMBEDDING_DIM=1024
+```
+
+**方式 B：终端 export（会话级）**
 
 ```bash
 # 外部 Fara（vLLM）
@@ -113,6 +132,11 @@ export EMBEDDING_API_URL=http://10.17.83.10:11434/v1/embeddings
 export EMBEDDING_MODEL_ID=bge-m3:latest
 export EMBEDDING_DIM=1024
 ```
+
+**方式 C：完全零配置，Web 界面实时选（demo1.0.3）**
+
+不设任何环境变量直接 `python start_all.py --no-models`，在 Web 界面（:8090）的**模型下拉框**选外部模型、**地址输入框**填外部端口即可，无需重启。
+> 注意：这种方式下 RAG 嵌入默认走本地 bge（需 `pip install sentence-transformers`），要用外部嵌入仍建议写 `.env` 的 `EMBEDDING_*`。
 
 ### 启动
 
