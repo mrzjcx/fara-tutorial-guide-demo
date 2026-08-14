@@ -415,13 +415,20 @@ SAVE_DIR = None
 
 @app.route("/")
 def index():
+    # 保证 .env 配置的默认模型一定出现在下拉框里（即使不在静态 options 列表）
+    fara_opts = list(pc.FARA_MODEL_OPTIONS)
+    if pc.FARA_MODEL_NAME not in fara_opts:
+        fara_opts.insert(0, pc.FARA_MODEL_NAME)
+    checker_opts = list(pc.CHECKER_MODEL_OPTIONS)
+    if pc.CHECKER_MODEL_NAME not in checker_opts:
+        checker_opts.insert(0, pc.CHECKER_MODEL_NAME)
     return render_template_string(
         HTML_TEMPLATE,
         test_url="",
         default_intent=pc.DEFAULT_INTENT,
         fara_space=pc.FARA_SPACE,
-        fara_model_options=pc.FARA_MODEL_OPTIONS,
-        checker_model_options=pc.CHECKER_MODEL_OPTIONS,
+        fara_model_options=fara_opts,
+        checker_model_options=checker_opts,
         fara_model_default=pc.FARA_MODEL_NAME,
         checker_model_default=pc.CHECKER_MODEL_NAME,
         fara_api_default=pc.FARA_API_URL,
