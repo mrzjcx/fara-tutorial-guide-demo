@@ -172,8 +172,9 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
 bash Miniforge3-Linux-x86_64.sh -b
 ~/miniforge3/bin/conda init bash && source ~/.bashrc
 
-# 1) 克隆项目
-cd ~ && git clone https://github.com/mrzjcx/fara-tutorial-guide-demo.git
+# 1) 克隆项目（GitHub 或国内 GitCode 镜像，二选一；国内推荐 GitCode）
+cd ~ && git clone -b demo1.0.3-web-model-select https://gitcode.com/MeJC/fara-tutorial-guide-demo.git
+# 或 GitHub: git clone -b demo1.0.3-web-model-select git@github.com:mrzjcx/fara-tutorial-guide-demo.git
 cd fara-tutorial-guide-demo
 
 # 2) 一键创建环境（Python 3.12 + 全部依赖，含 vllm 0.19.1 / torch 2.10.0 / transformers 5.14.1）
